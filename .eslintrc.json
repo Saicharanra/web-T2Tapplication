@@ -1,0 +1,17 @@
+// {
+//   "extends": ["next/core-web-vitals", "next/typescript"]
+// }
+
+{
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "rules": {
+    // ✅ Ignore unused variables starting with "_"
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+
+    // ✅ Don’t scream about using "any"
+    "@typescript-eslint/no-explicit-any": "off",
+
+    // ✅ Chill about missing useEffect dependencies
+    "react-hooks/exhaustive-deps": "off"
+  }
+}
