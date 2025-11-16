@@ -2,31 +2,46 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-// Environment variables
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// Environment variables with proper validation
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Validate environment variables
+if (!supabaseUrl) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
+}
+
+if (!supabaseAnonKey) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable');
+}
 
 // Supabase client for frontend (RLS enabled)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+// For server-side operations, create client on demand
+export function getSupabaseAdmin() {
+  if (!supabaseServiceKey) {
+    throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY environment variable');
+  }
+  return createClient(supabaseUrl!, supabaseServiceKey!);
+}
 
 
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
 
   return createServerClient(
-    supabaseUrl,
-    supabaseAnonKey,
+    supabaseUrl!,
+    supabaseAnonKey!,
     {
       cookies: {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
+            cookiesToSet.forEach(({ name, value, options }: { name: string; value: string; options: any }) =>
               cookieStore.set(name, value, options)
             );
           } catch {
@@ -56,7 +71,8 @@ export async function uploadImage(
   const filePath = `submissions/${userId}/${fileName}`;
 
   // Upload to Supabase Storage
-  const { error } = await supabaseAdmin.storage
+  const adminClient1 = getSupabaseAdmin();
+  const { error } = await adminClient1.storage
     .from('waste-images')
     .upload(filePath, file, {
       cacheControl: '3600',
@@ -70,7 +86,8 @@ export async function uploadImage(
   }
 
   // Get public URL
-  const { data: publicData } = supabaseAdmin.storage
+  const adminClient2 = getSupabaseAdmin();
+  const { data: publicData } = adminClient2.storage
     .from('waste-images')
     .getPublicUrl(filePath);
 
@@ -87,7 +104,8 @@ export async function uploadImage(
  * @param path - Storage path of the image
  */
 export async function deleteImage(path: string): Promise<void> {
-  const { error } = await supabaseAdmin.storage
+  const adminClient = getSupabaseAdmin();
+  const { error } = await adminClient.storage
     .from('waste-images')
     .remove([path]);
 
