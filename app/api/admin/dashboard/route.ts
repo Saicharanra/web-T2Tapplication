@@ -1,18 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
-//import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
+
+import { NextRequest, NextResponse } from "next/server";
+//import { auth } from "@clerk/nextjs/server"; 
+//import { createSupabaseServerClient } from "@/lib/supabase";
+
+export const dynamic = "force-dynamic"; 
+export const runtime = "nodejs"; 
 
 /**
  * GET: Fetch admin dashboard statistics
  */
-export async function GET(_req: NextRequest) {  // Keep underscore prefix to indicate intentionally unused
+export async function GET(_req: NextRequest) { 
   try {
     console.log('🔍 Admin dashboard API called');
     
-    // Comment out auth for testing
+    // Auth is commented, which is okay for testing only
     // const { userId } = await auth();
     // console.log('👤 Requesting user ID:', userId);
 
@@ -21,11 +23,11 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
     //   return NextResponse.json({ error: "Unauthorized - No user ID" }, { status: 401 });
     // }
 
-    // Create Supabase server client
-    const supabase = await createSupabaseServerClient();
+    // Create Supabase server client (commented out, so data-fetching is not live, but fine for a stub)
+    //const supabase = await createSupabaseServerClient();
     console.log('✅ Supabase client created');
 
-    // Return simplified response for testing
+    // Returns hardcoded dashboard data (good for fallback/test, not for production)
     return NextResponse.json({
       stats: {
         totalUsers: 0,
@@ -50,3 +52,4 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
     );
   }
 }
+
