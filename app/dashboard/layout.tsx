@@ -18,8 +18,6 @@ import { cn } from "@/lib/utils";
 import { UserButton } from "@clerk/nextjs";
 import { PointsProvider, usePoints } from "./context/PointsContext";
 
-// Force dynamic rendering to prevent header access issues
-export const dynamic = 'force-dynamic';
 
 const navigation = [
   { name: "Home", href: "/dashboard/home", icon: Home },
