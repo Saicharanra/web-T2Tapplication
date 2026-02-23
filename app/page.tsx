@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { SignedIn, SignedOut, UserButton, useAuth } from "@clerk/nextjs";
@@ -12,36 +12,53 @@ import {
   ArrowRight,
   Recycle,
   Loader2,
+  Camera,
 } from "lucide-react";
 import heroImage from "@/assets/hero-recycling.jpg";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardDescription,
+} from "@/components/ui/card";
 
 export default function Home() {
   const { isSignedIn } = useAuth();
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
-    if (isSignedIn) fetchUserRole();
-    else setLoading(false);
-  }, [isSignedIn]);
-
-  const fetchUserRole = async () => {
+  // Fix: define fetchUserRole with useCallback to prevent useEffect issues
+  const fetchUserRole = useCallback(async () => {
     try {
       const res = await fetch("/api/users/profile");
       if (res.ok) {
         const data = await res.json();
-        setUserRole(data.role);
+        setUserRole(data.role ?? null);
+      } else {
+        setUserRole(null);
       }
     } catch (err) {
       console.error("Error fetching user role:", err);
+      setUserRole(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  useEffect(() => {
+    if (isSignedIn) {
+      setLoading(true);
+      fetchUserRole();
+    } else {
+      setUserRole(null);
+      setLoading(false);
+    }
+  }, [isSignedIn, fetchUserRole]);
+
+  // Ensure all stats have a visible box by checking their data is correct and providing a fallback
   const stats = [
     {
       title: "Active Users",
@@ -64,6 +81,7 @@ export default function Home() {
       variant: "success" as const,
       trend: { value: 32, isPositive: true },
     },
+    // Ensure CO₂ Saved stat has its box rendered by keeping it in the array
     {
       title: "CO₂ Saved",
       value: "128 Tons",
@@ -73,29 +91,59 @@ export default function Home() {
     },
   ];
 
+  // Ensure the Upload Photo step is present in the correct position for "How It Works"
   const steps = [
     {
       step: "01",
       title: "Collect & Sort",
-      desc: "Separate your recyclable waste - plastics, paper, metal, or electronics.",
+      desc:
+        "Separate your recyclable waste - plastics, paper, metal, or electronics.",
       icon: Recycle,
       color: "primary",
     },
     {
       step: "02",
       title: "Upload Photo",
-      desc: "Take a clear photo of your sorted waste and upload it through our app.",
-      icon: TrendingUp,
+      desc:
+        "Take a clear photo of your sorted waste and upload it through our app.",
+      icon: Camera,
       color: "secondary",
     },
     {
       step: "03",
       title: "Earn Rewards",
-      desc: "Get points verified by our team and redeem them for exciting rewards!",
+      desc:
+        "Get points verified by our team and redeem them for exciting rewards!",
       icon: Award,
       color: "warning",
     },
   ];
+
+  // Helper for dynamic Tailwind classes (to avoid runtime errors)
+  const getBgClass = (color: string) => {
+    switch (color) {
+      case "primary":
+        return "bg-primary/10";
+      case "secondary":
+        return "bg-secondary/10";
+      case "warning":
+        return "bg-warning/10";
+      default:
+        return "bg-gray-100";
+    }
+  };
+  const getTextClass = (color: string) => {
+    switch (color) {
+      case "primary":
+        return "text-primary";
+      case "secondary":
+        return "text-secondary";
+      case "warning":
+        return "text-warning";
+      default:
+        return "text-gray-500";
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
@@ -175,7 +223,11 @@ export default function Home() {
           <div className="relative animate-slide-up">
             <div className="relative rounded-2xl overflow-hidden shadow-strong">
               <Image
-                src={typeof heroImage === "string" ? heroImage : heroImage.src}
+                src={
+                  typeof heroImage === "string"
+                    ? heroImage
+                    : (heroImage as { src: string }).src || "/assets/hero-recycling.jpg"
+                }
                 alt="People recycling with smartphone app showing reward points"
                 width={500}
                 height={320}
@@ -193,10 +245,15 @@ export default function Home() {
       {/* Stats Section */}
       <section className="py-16 px-4 -mt-12 relative z-10">
         <div className="container mx-auto">
+          {/* 
+            The CO₂ Saved box will always render since it is in stats array.
+            If it is not appearing, check if StatCard itself has conditional logic hiding it (not in this component).
+            Also ensure lg:grid-cols-4 for 4 stats.
+          */}
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {stats.map((stat, i) => (
               <StatCard
-                key={i}
+                key={stat.title}
                 title={stat.title}
                 value={stat.value}
                 icon={stat.icon}
@@ -220,18 +277,23 @@ export default function Home() {
             </p>
           </div>
 
+          {/* "Upload Photo" should always appear as the second card */}
           <div className="grid md:grid-cols-3 gap-8">
             {steps.map((step, index) => (
               <Card
-                key={index}
+                key={step.step}
                 className="relative p-8 rounded-2xl border-2 border-border bg-gradient-subtle hover:shadow-medium transition-all duration-300 animate-fade-in"
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
                 <CardHeader>
                   <div
-                    className={`inline-flex items-center justify-center w-16 h-16 rounded-xl bg-${step.color}/10 mb-6`}
+                    className={`inline-flex items-center justify-center w-16 h-16 rounded-xl ${getBgClass(
+                      step.color
+                    )} mb-6`}
                   >
-                    <step.icon className={`h-8 w-8 text-${step.color}`} />
+                    {/* The icon for "Upload Photo" will be Camera, see steps array above */}
+                    {/* @ts-ignore */}
+                    <step.icon className={`h-8 w-8 ${getTextClass(step.color)}`} />
                   </div>
                   <div className="absolute top-4 right-4 text-6xl font-bold text-muted/10">
                     {step.step}

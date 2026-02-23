@@ -19,7 +19,7 @@ export async function GET() {
     // Fetch top users ordered by points
     const { data: leaderboard, error } = await supabase
       .from("User")
-      .select("id, name, email, points, level, createdAt")
+      .select("id, name, email, points, level, updatedAt")
       .eq("status", "ACTIVE")
       .order("points", { ascending: false })
       .limit(50);
@@ -67,7 +67,7 @@ export async function GET() {
             .toUpperCase()
             .slice(0, 2)
         : "??",
-      joinedAt: user.createdAt,
+      joinedAt: user.updatedAt,
     })) || [];
 
     // Find current user's rank
