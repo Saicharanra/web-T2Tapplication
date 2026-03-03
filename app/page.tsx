@@ -72,27 +72,25 @@ export default function Home() {
       title: "Total Points Awarded",
       value: "2.4M",
       icon: Award,
-      variant: "warning" as const,
+      variant: "primary" as const,
       trend: { value: 18, isPositive: true },
     },
     {
       title: "Waste Recycled",
       value: "45.2 Tons",
       icon: TrendingUp,
-      variant: "success" as const,
+      variant: "primary" as const,
       trend: { value: 32, isPositive: true },
     },
-    // Ensure CO₂ Saved stat has its box rendered by keeping it in the array
     {
       title: "CO₂ Saved",
       value: "128 Tons",
       icon: Leaf,
-      variant: "secondary" as const,
+      variant: "primary" as const,
       trend: { value: 15, isPositive: true },
     },
   ];
 
-  // Ensure the Upload Photo step is present in the correct position for "How It Works"
   const steps = [
     {
       step: "01",
@@ -108,7 +106,7 @@ export default function Home() {
       desc:
         "Take a clear photo of your sorted waste and upload it through our app.",
       icon: Camera,
-      color: "secondary",
+      color: "primary",
     },
     {
       step: "03",
@@ -116,7 +114,7 @@ export default function Home() {
       desc:
         "Get points verified by our team and redeem them for exciting rewards!",
       icon: Award,
-      color: "warning",
+      color: "primary",
     },
   ];
 
@@ -125,10 +123,6 @@ export default function Home() {
     switch (color) {
       case "primary":
         return "bg-primary/10";
-      case "secondary":
-        return "bg-secondary/10";
-      case "warning":
-        return "bg-warning/10";
       default:
         return "bg-gray-100";
     }
@@ -137,10 +131,7 @@ export default function Home() {
     switch (color) {
       case "primary":
         return "text-primary";
-      case "secondary":
-        return "text-secondary";
-      case "warning":
-        return "text-warning";
+      
       default:
         return "text-gray-500";
     }
@@ -278,11 +269,6 @@ export default function Home() {
       {/* Stats Section */}
       <section className="py-16 px-4 -mt-12 relative z-10">
         <div className="container mx-auto">
-          {/* 
-            The CO₂ Saved box will always render since it is in stats array.
-            If it is not appearing, check if StatCard itself has conditional logic hiding it (not in this component).
-            Also ensure lg:grid-cols-4 for 4 stats.
-          */}
           <motion.div
             className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
             variants={containerVariants}
@@ -343,15 +329,15 @@ export default function Home() {
                       {/* @ts-ignore */}
                       <step.icon className={`h-8 w-8 ${getTextClass(step.color)}`} />
                     </div>
-                    <div className="absolute top-4 right-4 text-6xl font-bold text-muted/20 select-none">
+                    <div className="absolute top-4 right-4 text-6xl font-bold text-black select-none">
                       {step.step}
                     </div>
-                    <CardTitle className="text-2xl font-bold text-foreground mb-3">
+                    <CardTitle className="text-2xl font-bold text-black mb-3">
                       {step.title}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-muted-foreground">{step.desc}</p>
+                    <p className="text-black">{step.desc}</p>
                   </CardContent>
                 </Card>
               </motion.div>
