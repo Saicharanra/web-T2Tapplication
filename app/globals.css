@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ✨ Premium Light Mode */
+    --background: 0 0% 100%;
+    /* Pure, crisp white */
+    --foreground: 222 47% 11%;
+    /* Deep Slate for high-contrast readability */
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 160 84% 25%;
+    /* Deep luxurious emerald */
+    --primary-foreground: 210 40% 98%;
+    /* Crisp white text on primary */
+
+    --secondary: 175 60% 85%;
+    /* Soft pastel teal */
+    --secondary-foreground: 175 90% 15%;
+    /* Deep teal text */
+
+    --muted: 210 40% 96.1%;
+    /* Very soft gray-blue */
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 43 96% 58%;
+    /* Rich Treasure Gold/Amber */
+    --accent-foreground: 24 9.8% 10%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    /* Clean, subtle borders */
+    --input: 214.3 31.8% 91.4%;
+    --ring: 160 84% 25%;
+
+    --radius: 1rem;
+  }
+
+  .dark {
+    /* 🌌 Premium Obsidian Dark Mode */
+    --background: 224 40% 4%;
+    /* Near-black obsidian */
+    --foreground: 210 40% 98%;
+    /* Brilliant white */
+
+    --card: 222 47% 6%;
+    /* Slightly elevated dark card */
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 6%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 160 75% 45%;
+    /* Vibrant, glowing tech-emerald */
+    --primary-foreground: 224 40% 4%;
+    /* Dark text on bright primary */
+
+    --secondary: 175 40% 15%;
+    /* Deep muted teal */
+    --secondary-foreground: 175 60% 90%;
+
+    --muted: 217.2 32.6% 12.5%;
+    /* Slate mute */
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 43 96% 56%;
+    /* Bright glowing gold */
+    --accent-foreground: 224 40% 4%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 12.5%;
+    --input: 217.2 32.6% 12.5%;
+    --ring: 160 75% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground selection:bg-primary/20 selection:text-primary overflow-x-hidden w-full;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* 🌈 Premium Gradients & Effects */
+.bg-gradient-eco {
+  @apply bg-gradient-to-br from-[#064E3B] via-[#0D9488] to-[#10B981];
+  background-size: 200% 200%;
+  animation: gradient-flow 12s ease infinite;
+}
+
+.bg-gradient-subtle {
+  @apply bg-gradient-to-br from-[#F8FAFC] via-[#F0FDF4] to-[#F0FDFA];
+}
+
+.dark .bg-gradient-subtle {
+  @apply bg-gradient-to-br from-[#020617] via-[#064E3B]/10 to-[#0F172A];
+}
+
+/* 🧊 Supercharged Glassmorphism */
+.bg-glass {
+  @apply bg-white/60 backdrop-blur-xl border border-white/60 shadow-[0_8px_32px_#0000000D];
+}
+
+.dark .bg-glass {
+  @apply bg-[#0B1527]/80 backdrop-blur-xl border border-white/5 shadow-[0_8px_32px_#0000004D];
+}
+
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* 💫 Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out forwards;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.8s ease-out forwards;
+}
+
+@keyframes pulse-soft {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* 🧢 Container helper */
+.container {
+  @apply max-w-6xl mx-auto;
+}
+
+/* 🌊 Utilities */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
+}
