@@ -12,6 +12,7 @@ import { UserButton, useUser, RedirectToSignIn } from "@clerk/nextjs";
 const navigationBase = [
   { name: "Dashboard", href: "/admin", icon: BarChart3, section: "MAIN" },
   { name: "Submissions", href: "/admin/submissions", icon: Images, badge: null, section: "MAIN" },
+  { name: "Rewards", href: "/admin/rewards", icon: Coins, section: "MAIN" },
   { name: "Users", href: "/admin/users", icon: Users, section: "MAIN" },
   { name: "Progress Reports", href: "/admin/reports", icon: TrendingUp, section: "SYSTEM" },
   { name: "Points History", href: "/admin/points", icon: Coins, section: "SYSTEM" },

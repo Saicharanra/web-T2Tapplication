@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,9 +20,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized - No user ID" }, { status: 401 });
     }
 
-    // Create Supabase server client
-    const supabase = await createSupabaseServerClient();
-    console.log('✅ Supabase client created');
+    // Create Supabase admin client (bypasses RLS for admin operations)
+    const supabase = getSupabaseAdmin();
+    console.log('✅ Supabase admin client created');
 
     // Check if user is admin
     const { data: adminUser, error: adminError } = await supabase
