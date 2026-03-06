@@ -9,7 +9,7 @@ export default function Footer() {
     <footer className="relative bg-gradient-to-br from-green-50 via-white to-blue-50 border-t border-gray-200 mt-16">
       {/* Footer main content */}
       <div className="max-w-7xl mx-auto px-6 py-12 md:py-16 grid grid-cols-1 md:grid-cols-3 gap-10 text-center md:text-left">
-        
+
         {/* Brand Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -34,10 +34,10 @@ export default function Footer() {
           {/* Social Media */}
           <div className="flex justify-center md:justify-start gap-4 mt-4">
             {[
-              { icon: <Facebook size={20} />, link: "#" },
-              { icon: <Instagram size={20} />, link: "#" },
-              { icon: <Twitter size={20} />, link: "#" },
-              { icon: <Linkedin size={20} />, link: "#" },
+              { icon: <Facebook size={20} />, link: "https://www.facebook.com/t2tindia" },
+              { icon: <Instagram size={20} />, link: "https://www.instagram.com/t2t_india?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" },
+              { icon: <Twitter size={20} />, link: "https://x.com/t2t_india" },
+              { icon: <Linkedin size={20} />, link: "https://www.linkedin.com/in/trash-2-treasure-2614223b3" },
             ].map((social, i) => (
               <motion.a
                 key={i}
@@ -117,7 +117,7 @@ export default function Footer() {
         transition={{ duration: 0.8, delay: 0.3 }}
         className="text-center py-5 text-gray-500 text-sm"
       >
-        © 2025 <span className="font-semibold text-green-600">Trash2Treasure</span>. All rights reserved.
+        © 2026 <span className="font-semibold text-green-600">Trash2Treasure</span>. All rights reserved.
       </motion.div>
 
       {/* Background Glow Effect */}

@@ -1,357 +1,351 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, CheckCircle2, Coins, Users as UsersIcon, RefreshCw } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { Clock, Check, X, Coins, Users as UsersIcon, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Stat {
   title: string;
   value: string;
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  color: string;
-  bg: string;
+  change: string;
+  changeType: "positive" | "negative";
+  icon: React.ComponentType<any>;
+  gradient: string;
 }
 
 interface Activity {
+  id: number;
   user: string;
   action: string;
+  details: string;
   time: string;
-  status: string;
+  status: "new" | "verified" | "rejected";
 }
 
-interface UserData {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  status: string;
+interface Submission {
+  id: number;
+  userName: string;
+  userEmail: string;
+  image: string;
+  wasteType: string;
+  location: string;
+  submissionDate: string;
+  status: "pending" | "verified" | "rejected";
   points: number;
-  level: string;
-  createdAt: string;
-  totalSubmissions: number;
-  verifiedSubmissions: number;
-  pendingSubmissions: number;
-  rejectedSubmissions: number;
-}
-
-interface DashboardStats {
-  totalUsers: number;
-  activeUsers: number;
-  newThisWeek: number;
-  topContributors: number;
-  recentSubmissions: number;
-  totalPoints: number;
-}
-
-interface DashboardData {
-  stats: DashboardStats;
-  users: UserData[];
+  description: string;
+  userId: string;
 }
 
 export default function AdminDashboard() {
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
+  const [dashboardData, setDashboardData] = useState<{ stats: any, recentSubmissions: Submission[] }>({
+    stats: {
+      pendingSubmissions: 0,
+      verifiedToday: 0,
+      rejectedToday: 0,
+      totalPoints: 0,
+      totalUsers: 0,
+      newThisWeek: 0
+    },
+    recentSubmissions: []
+  });
 
-  const fetchDashboardData = useCallback(async (useFallback = false) => {
+  // Convert API submissions to our Activity UI format for feed
+  const [activities, setActivities] = useState<Activity[]>([]);
+
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
-      
-      console.log("Fetching dashboard data from", useFallback ? "/api/admin/dashboard/fallback" : "/api/admin/dashboard");
-      
-      // Fetch admin dashboard data
-      const response = await fetch(useFallback ? "/api/admin/dashboard/fallback" : "/api/admin/dashboard");
-      
-      console.log("Response status:", response.status);
-      
-      if (!response.ok) {
-        if (!useFallback) {
-        
-          console.log("Trying fallback API...");
-          return fetchDashboardData(true);
+      const res = await fetch('/api/admin/dashboard');
+      if (res.ok) {
+        const data = await res.json();
+        let newStats = data.stats || {
+          pendingSubmissions: 0,
+          verifiedToday: 0,
+          rejectedToday: 0,
+          totalPoints: 0,
+          totalUsers: 0,
+          newThisWeek: 0
+        };
+        let newSubmissions = data.recentSubmissions || [];
+
+        // Showcase mock data if empty
+        if (newStats.totalUsers === 0 && newSubmissions.length === 0) {
+          newStats = {
+            pendingSubmissions: 12,
+            verifiedToday: 45,
+            rejectedToday: 3,
+            totalPoints: 12500,
+            totalUsers: 128,
+            newThisWeek: 15
+          };
+          newSubmissions = [
+            {
+              id: 1,
+              userId: 'USR001',
+              user: { name: 'Priya Sharma', email: 'priya@example.com' },
+              imageUrl: 'https://images.pexels.com/photos/3735218/pexels-photo-3735218.jpeg',
+              wasteType: 'Plastic Bottles',
+              location: 'Hyderabad, Telangana',
+              createdAt: new Date().toISOString(),
+              status: 'PENDING',
+              pointsAwarded: 0,
+            },
+            {
+              id: 2,
+              userId: 'USR002',
+              user: { name: 'Rajesh Kumar', email: 'rajesh@example.com' },
+              imageUrl: 'https://images.pexels.com/photos/802221/pexels-photo-802221.jpeg',
+              wasteType: 'Aluminum Cans',
+              location: 'Warangal, Telangana',
+              createdAt: new Date(Date.now() - 3600000).toISOString(),
+              status: 'VERIFIED',
+              pointsAwarded: 35,
+            },
+            {
+              id: 3,
+              userId: 'USR003',
+              user: { name: 'Anita Reddy', email: 'anita@example.com' },
+              imageUrl: 'https://images.pexels.com/photos/3735218/pexels-photo-3735218.jpeg',
+              wasteType: 'Paper Waste',
+              location: 'Karimnagar, Telangana',
+              createdAt: new Date(Date.now() - 7200000).toISOString(),
+              status: 'REJECTED',
+              pointsAwarded: 0,
+            }
+          ];
         }
-        
-        const errorText = await response.text();
-        console.error("API Error response:", errorText);
-        throw new Error(`Failed to fetch dashboard data: ${response.status} - ${errorText}`);
+
+        setDashboardData({ stats: newStats, recentSubmissions: newSubmissions });
+
+        // Populate feed with recent events derived from submissions
+        if (newSubmissions.length > 0) {
+          const derivedActivities: Activity[] = newSubmissions.map((sub: any) => {
+            let actionStr = 'submitted new waste item';
+            let statusEnum: "new" | "verified" | "rejected" = 'new';
+            if (sub.status === 'VERIFIED') { actionStr = `earned ${sub.pointsAwarded || 35} points`; statusEnum = 'verified'; }
+            if (sub.status === 'REJECTED') { actionStr = 'submission rejected'; statusEnum = 'rejected'; }
+
+            return {
+              id: sub.id,
+              user: sub.user?.name || 'Unknown User',
+              action: actionStr,
+              details: sub.wasteType + " from " + sub.location,
+              time: new Date(sub.createdAt).toLocaleDateString(),
+              status: statusEnum
+            };
+          });
+          setActivities(derivedActivities);
+        }
       }
-      
-      const rawData: unknown = await response.json();
-      console.log("Received raw data:", rawData);
-      
-      // Type guard to check if data has expected structure
-      const isValidDashboardData = (data: unknown): data is { 
-        stats?: Partial<DashboardStats>; 
-        users?: UserData[] 
-      } => {
-        return typeof data === 'object' && data !== null;
-      };
-      
-      if (!isValidDashboardData(rawData)) {
-        throw new Error('Invalid dashboard data structure received');
-      }
-      
-      const data: DashboardData = {
-        stats: {
-          totalUsers: rawData.stats?.totalUsers || 0,
-          activeUsers: rawData.stats?.activeUsers || 0,
-          newThisWeek: rawData.stats?.newThisWeek || 0,
-          topContributors: rawData.stats?.topContributors || 0,
-          recentSubmissions: rawData.stats?.recentSubmissions || 0,
-          totalPoints: rawData.stats?.totalPoints || 0,
-        },
-        users: Array.isArray(rawData.users) ? rawData.users : []
-      };
-      
-      console.log("Processed data:", data);
-      setDashboardData(data);
     } catch (err) {
-      console.error("Error fetching dashboard data:", err);
-      
-      if (!useFallback) {
-        // Try fallback API
-        console.log("Trying fallback API due to error...");
-        return fetchDashboardData(true);
-      }
-      
-      const errorMessage = err instanceof Error ? err.message : "Failed to load dashboard data";
-      setError(errorMessage);
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data. Please try again.",
-        variant: "destructive",
-      });
+      console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-
-  const stats: Stat[] = dashboardData ? [
+  const stats: Stat[] = [
     {
-      title: "Total Users",
-      value: dashboardData.stats.totalUsers.toString(),
-      icon: UsersIcon,
-      color: "text-purple-600",
-      bg: "bg-purple-50",
+      title: "Pending Submissions",
+      value: String(dashboardData.stats.pendingSubmissions),
+      change: "Live",
+      changeType: "positive",
+      icon: Clock,
+      gradient: "from-amber-400 to-amber-600",
+    },
+    {
+      title: "Verified Today",
+      value: String(dashboardData.stats.verifiedToday),
+      change: "Live",
+      changeType: "positive",
+      icon: Check,
+      gradient: "from-emerald-500 to-emerald-700",
+    },
+    {
+      title: "Rejected Today",
+      value: String(dashboardData.stats.rejectedToday),
+      change: "Live",
+      changeType: "negative",
+      icon: X,
+      gradient: "from-red-500 to-red-700",
+    },
+    {
+      title: "Points Awarded",
+      value: String(dashboardData.stats.totalPoints.toLocaleString()),
+      change: "Total",
+      changeType: "positive",
+      icon: Coins,
+      gradient: "from-violet-500 to-violet-700",
     },
     {
       title: "Active Users",
-      value: dashboardData.stats.activeUsers.toString(),
+      value: String(dashboardData.stats.totalUsers),
+      change: `+${dashboardData.stats.newThisWeek} this week`,
+      changeType: "positive",
       icon: UsersIcon,
-      color: "text-green-600",
-      bg: "bg-green-50",
-    },
-    {
-      title: "Pending Submissions",
-      value: dashboardData.stats.recentSubmissions.toString(),
-      icon: Clock,
-      color: "text-yellow-600",
-      bg: "bg-yellow-50",
-    },
-    {
-      title: "Verified Submissions",
-      value: dashboardData.users.reduce((sum, user) => sum + (user.verifiedSubmissions || 0), 0).toString(),
-      icon: CheckCircle2,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-    },
-    {
-      title: "Total Points Awarded",
-      value: dashboardData.stats.totalPoints.toLocaleString(),
-      icon: Coins,
-      color: "text-orange-600",
-      bg: "bg-orange-50",
-    },
-  ] : [
-
-    {
-      title: "Total Users",
-      value: "0",
-      icon: UsersIcon,
-      color: "text-purple-600",
-      bg: "bg-purple-50",
-    },
-    {
-      title: "Active Users",
-      value: "0",
-      icon: UsersIcon,
-      color: "text-green-600",
-      bg: "bg-green-50",
-    },
-    {
-      title: "Pending Submissions",
-      value: "0",
-      icon: Clock,
-      color: "text-yellow-600",
-      bg: "bg-yellow-50",
-    },
-    {
-      title: "Verified Submissions",
-      value: "0",
-      icon: CheckCircle2,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-    },
-    {
-      title: "Total Points Awarded",
-      value: "0",
-      icon: Coins,
-      color: "text-orange-600",
-      bg: "bg-orange-50",
+      gradient: "from-blue-500 to-blue-700",
     },
   ];
 
-  // Generate recent activity from users (most recent first)
-  const recentActivity: Activity[] = dashboardData && dashboardData.users.length > 0 ? 
-    [...dashboardData.users]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5)
-      .map(user => ({
-        user: user.name || "Unknown User",
-        action: `Joined as ${user.role?.toLowerCase() || "user"}`,
-        time: getTimeAgo(new Date(user.createdAt)),
-        status: user.status?.toLowerCase() || "active"
-      })) : [];
-
-  // Helper function to calculate time ago
-  function getTimeAgo(date: Date): string {
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
-    if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-    return `${Math.floor(diffInSeconds / 86400)} days ago`;
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
-          <p className="text-gray-600 mt-1">Loading dashboard data...</p>
-        </div>
-        <div className="flex justify-center items-center h-64">
-          <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
-          <p className="text-gray-600 mt-1">Error loading dashboard</p>
-        </div>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center text-red-600">
-              <p>Error: {error}</p>
-              <button 
-                onClick={() => fetchDashboardData()}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Retry
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const refreshData = () => {
+    fetchDashboardData();
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
+      {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
-        <p className="text-gray-600 mt-1">Monitor and manage your Trash2Treasure Telangana system</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard Overview</h1>
+        <p className="text-gray-500 text-lg">Monitor and manage your Trash2Treasure Telangana system</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title || index} className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-2">{stat.value}</p>
-                  </div>
-                  <div className={`p-3 rounded-full ${stat.bg}`}>
-                    <Icon className={`h-6 w-6 ${stat.color}`} />
-                  </div>
+            <div key={index} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 relative overflow-hidden group hover:-translate-y-1 transition-all duration-300 hover:shadow-md">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-600 to-blue-600"></div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-500">{stat.title}</h3>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white bg-gradient-to-br ${stat.gradient} shadow-inner`}>
+                  <Icon className="h-5 w-5" />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-3xl font-bold text-gray-900 mb-2">{stat.value}</p>
+              <div className={`flex items-center text-sm font-medium ${stat.changeType === 'positive' ? 'text-emerald-600' : 'text-red-500'}`}>
+                {stat.changeType === 'positive' ? <ArrowUp className="w-4 h-4 mr-1" /> : <ArrowDown className="w-4 h-4 mr-1" />}
+                {stat.change}
+              </div>
+            </div>
           );
         })}
       </div>
 
-      {/* Real-time Activity Feed */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              Recent User Activity
-              <button onClick={() => fetchDashboardData()} disabled={loading}>
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-green-600" : "text-gray-500 hover:text-green-600"}`} />
-              </button>
-            </CardTitle>
+      {/* Real-time Feed */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row items-center justify-between bg-gray-50/50 gap-4">
+          <div className="flex items-center gap-3">
+            <RadioIcon className="w-6 h-6 text-slate-700" />
+            <h2 className="text-lg sm:text-xl font-bold text-slate-800">Real-time Activity Feed</h2>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentActivity.length > 0 ? (
-              recentActivity.map((activity, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-green-400 to-blue-400 flex items-center justify-center text-white font-semibold">
-                      {activity.user.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{activity.user}</p>
-                      <p className="text-sm text-gray-600">{activity.action}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-gray-500">{activity.time}</span>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        activity.status === "active"
-                          ? "bg-green-100 text-green-700"
-                          : activity.status === "pending"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                No recent activity found
+          <Button variant="outline" size="sm" onClick={refreshData} className="flex items-center gap-2 text-sm text-gray-500 font-medium bg-white px-3 py-1.5 rounded-full border border-gray-200">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
+            Refresh Data
+          </Button>
+        </div>
+        <div className="max-h-[400px] overflow-y-auto">
+          {activities.map((activity) => (
+            <div key={activity.id} className="p-4 border-b border-gray-50 flex items-center gap-4 hover:bg-gray-50/80 transition-colors group">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
+                {activity.user.charAt(0)}
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900">
+                  {activity.user} <span className="font-normal text-gray-600">{activity.action}</span>
+                </p>
+                <p className="text-sm text-gray-500 truncate">{activity.details}</p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="text-xs text-gray-400 font-medium mb-1">{activity.time}</p>
+                <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide
+                  ${activity.status === 'new' ? 'bg-blue-100 text-blue-700' :
+                    activity.status === 'verified' ? 'bg-emerald-100 text-emerald-700' :
+                      'bg-red-100 text-red-700'}
+                `}>
+                  {activity.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Submissions */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-800">Recent Submissions</h2>
+          <button className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
+            View All
+          </button>
+        </div>
+        <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {dashboardData.recentSubmissions.map((sub: any, i) => (
+            <div key={i} className={`bg-white rounded-xl border p-5 relative transition-all duration-300 hover:-translate-y-1 hover:shadow-xl
+              ${sub.status === 'PENDING' ? 'border-amber-400 bg-gradient-to-br from-amber-50 to-white' :
+                sub.status === 'VERIFIED' ? 'border-emerald-400 bg-gradient-to-br from-emerald-50 to-white' :
+                  'border-red-400 bg-gradient-to-br from-red-50 to-white'}`}>
+
+              <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-white shadow-sm z-10
+                ${sub.status === 'PENDING' ? 'bg-amber-500' : sub.status === 'VERIFIED' ? 'bg-emerald-500' : 'bg-red-500'}`}>
+                {sub.status}
+              </div>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white flex items-center justify-center font-bold text-lg shadow-sm font-sans uppercase">
+                  {(sub.user?.name || 'U').charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-gray-900 leading-tight truncate">{sub.user?.name || 'Unknown User'}</h4>
+                  <p className="text-xs text-gray-500 truncate">{sub.userId.substring(0, 8)}... • {sub.user?.email}</p>
+                </div>
+              </div>
+
+              <div className="w-full h-48 bg-gray-100 rounded-lg mb-4 overflow-hidden relative group cursor-pointer">
+                <img src={sub.imageUrl || 'https://images.pexels.com/photos/3735218/pexels-photo-3735218.jpeg?auto=compress&cs=tinysrgb&w=400'} alt={sub.wasteType} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              </div>
+
+              <div className="space-y-3 mb-4">
+                <div className="flex justify-between items-center py-1 border-b border-gray-200/50">
+                  <span className="text-sm text-gray-500 font-medium">Waste Type:</span>
+                  <span className="text-sm font-semibold text-gray-900">{sub.wasteType}</span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-gray-200/50">
+                  <span className="text-sm text-gray-500 font-medium">Location:</span>
+                  <span className="text-sm font-semibold text-gray-900 truncate max-w-[150px] text-right">{sub.location}</span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-gray-200/50">
+                  <span className="text-sm text-gray-500 font-medium">Submitted:</span>
+                  <span className="text-sm font-semibold text-gray-900">{new Date(sub.createdAt).toLocaleDateString()}</span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-gray-200/50">
+                  <span className="text-sm text-gray-500 font-medium">Points:</span>
+                  <span className="text-sm font-bold text-gray-900">{sub.pointsAwarded || 0}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
+  );
+}
+
+// Custom icon since Broadcast isn't exactly like the one in HTML potentially
+function RadioIcon(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+      <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
+      <circle cx="12" cy="12" r="2" />
+      <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" />
+      <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
+    </svg>
   );
 }

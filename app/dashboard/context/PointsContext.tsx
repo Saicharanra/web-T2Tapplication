@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 
 interface PointsContextType {
   points: number;
+  setPoints: React.Dispatch<React.SetStateAction<number>>;
   pointsLoading: boolean;
   refreshPoints: () => Promise<void>;
 }
@@ -29,16 +30,16 @@ export function PointsProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
         },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        setPoints(data.totalPoints || 0);
+        setPoints(data.totalPoints ?? 0);
       } else {
-        console.error('Failed to fetch points:', response.status);
+        console.warn('Backend API unavailable. Points will show 0 until database is connected.');
         setPoints(0);
       }
     } catch (error) {
-      console.error('Error fetching user points:', error);
+      console.warn('Backend API unavailable or network error.', error);
       setPoints(0);
     } finally {
       setPointsLoading(false);
@@ -50,7 +51,7 @@ export function PointsProvider({ children }: { children: ReactNode }) {
   }, [refreshPoints]);
 
   return (
-    <PointsContext.Provider value={{ points, pointsLoading, refreshPoints }}>
+    <PointsContext.Provider value={{ points, setPoints, pointsLoading, refreshPoints }}>
       {children}
     </PointsContext.Provider>
   );

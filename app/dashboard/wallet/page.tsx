@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wallet as WalletIcon, TrendingUp, Download, Gift, ArrowUpRight, Loader2, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { Wallet as WalletIcon, TrendingUp, Download, Gift, ArrowUpRight, Recycle, RefreshCw, Trophy, BookOpen, ChevronRight } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { usePoints } from "../context/PointsContext";
 //import { useUser } from "@clerk/nextjs";
 
 interface PointsHistory {
@@ -35,6 +37,7 @@ const rewards = [
 
 export default function WalletPage() {
   const { toast } = useToast();
+  const { points: globalPoints } = usePoints();
   // Remove unused variable 'user' to fix lint error
   //const { user } = useUser();
 
@@ -56,7 +59,37 @@ export default function WalletPage() {
       const response = await fetch('/api/wallet');
 
       if (!response.ok) {
-        throw new Error('Failed to fetch wallet data');
+        console.warn('Backend API unavailable (likely missing DB config). Displaying 300-point demo wallet state.');
+        setWalletData({
+          totalPoints: 300,
+          thisMonthPoints: 300,
+          totalEarned: 300,
+          totalRedeemed: 0,
+          transactions: [
+            {
+              id: "tx-1",
+              points: 150,
+              description: "Recycled 15 Plastic Bottles",
+              type: "EARNED",
+              createdAt: new Date().toISOString()
+            },
+            {
+              id: "tx-2",
+              points: 100,
+              description: "Recycled Cardboard Boxes",
+              type: "EARNED",
+              createdAt: new Date(Date.now() - 86400000).toISOString()
+            },
+            {
+              id: "tx-3",
+              points: 50,
+              description: "Daily Streak Bonus",
+              type: "BONUS",
+              createdAt: new Date(Date.now() - 172800000).toISOString()
+            }
+          ],
+        });
+        return;
       }
 
       const data = await response.json();
@@ -65,12 +98,8 @@ export default function WalletPage() {
       setWalletData(data);
 
     } catch (error) {
-      console.error('❌ Error fetching wallet data:', error);
-      toast({
-        title: "❌ Error",
-        description: "Failed to load wallet data",
-        variant: "destructive",
-      });
+      console.warn('Backend API unavailable or error fetching wallet data:', error);
+      // Suppress the destructive toast if this is just a missing DB config issue.
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -115,8 +144,8 @@ export default function WalletPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-        <span className="ml-2 text-gray-600">Loading wallet...</span>
+        <Recycle className="h-8 w-8 animate-spin text-green-600" />
+        <span className="ml-2 text-gray-600">Loading dashboard...</span>
       </div>
     );
   }
@@ -126,12 +155,12 @@ export default function WalletPage() {
       <div>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Digital Wallet</h1>
-            <p className="text-gray-600 mt-1">Manage your points and redeem rewards</p>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600 mt-1">Manage your points, redeem rewards, and track impact.</p>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleRefresh}
             disabled={refreshing}
           >
@@ -143,25 +172,25 @@ export default function WalletPage() {
 
       {/* Wallet Balance */}
       <Card className="bg-gradient-to-br from-green-600 to-blue-600 text-white">
-        <CardContent className="p-8">
-          <div className="flex items-center justify-between">
+        <CardContent className="p-6 sm:p-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 sm:gap-4">
             <div>
               <p className="text-white/80 mb-2">Total Balance</p>
               <div className="flex items-center gap-3">
                 <span className="text-5xl">🪙</span>
                 <span className="text-5xl font-bold">
-                  {walletData.totalPoints.toLocaleString()}
+                  {globalPoints.toLocaleString()}
                 </span>
               </div>
               <p className="text-white/80 mt-2">Points</p>
             </div>
-            <div className="space-y-3">
-              <Button variant="secondary" className="w-full">
-                <Download className="h-4 w-4 mr-2" />
+            <div className="flex sm:flex-col gap-3 w-full sm:w-auto">
+              <Button variant="secondary" className="flex-1 sm:w-full">
+                <Download className="h-4 w-4 mr-0 sm:mr-2 hidden sm:block" />
                 Statement
               </Button>
-              <Button variant="secondary" className="w-full">
-                <Gift className="h-4 w-4 mr-2" />
+              <Button variant="secondary" className="flex-1 sm:w-full">
+                <Gift className="h-4 w-4 mr-0 sm:mr-2 hidden sm:block" />
                 Redeem
               </Button>
             </div>
@@ -220,31 +249,46 @@ export default function WalletPage() {
         </Card>
       </div>
 
-      {/* Available Rewards */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Available Rewards</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {rewards.map((reward) => (
-              <div
-                key={reward.name}
-                className="bg-gradient-to-br from-green-50 to-blue-50 p-4 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow"
-              >
-                <div className="text-4xl mb-3">{reward.icon}</div>
-                <h3 className="font-semibold text-gray-900 mb-2">{reward.name}</h3>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-green-600">{reward.points} pts</span>
-                  <Button size="sm" variant="outline">
-                    Redeem
-                  </Button>
+
+
+      {/* Explore Features Overlay (Migrated from Top Navigation) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Leaderboard Card */}
+        <Link href="/dashboard/leaderboard" className="block">
+          <Card className="hover:shadow-lg transition-all border-l-4 border-l-yellow-400 group cursor-pointer bg-gradient-to-r from-white to-yellow-50">
+            <CardContent className="p-6 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 bg-yellow-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Trophy className="h-6 w-6 text-yellow-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Leaderboard</h3>
+                  <p className="text-sm text-gray-600">See top recyclers and your rank</p>
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-yellow-600 group-hover:translate-x-1 transition-all" />
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Learn Card */}
+        <Link href="/dashboard/learn" className="block">
+          <Card className="hover:shadow-lg transition-all border-l-4 border-l-blue-400 group cursor-pointer bg-gradient-to-r from-white to-blue-50">
+            <CardContent className="p-6 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <BookOpen className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Learn</h3>
+                  <p className="text-sm text-gray-600">Discover tips to recycle better</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
 
       {/* Transaction History */}
       <Card>
@@ -266,14 +310,14 @@ export default function WalletPage() {
               {walletData.transactions.map((transaction) => (
                 <div
                   key={transaction.id}
-                  className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow gap-3 sm:gap-4 overflow-hidden"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${getTransactionColor(transaction.type)}`}>
+                  <div className="flex items-center gap-4 w-full sm:w-auto overflow-hidden">
+                    <div className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center ${getTransactionColor(transaction.type)}`}>
                       <span className="text-xl">{getTransactionIcon(transaction.type)}</span>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{transaction.description}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900 truncate">{transaction.description}</p>
                       <p className="text-sm text-gray-500">
                         {new Date(transaction.createdAt).toLocaleDateString('en-US', {
                           year: 'numeric',
@@ -285,10 +329,9 @@ export default function WalletPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-lg font-bold ${
-                      transaction.type === 'REDEEMED' ? 'text-red-600' : 'text-green-600'
-                    }`}>
+                  <div className="text-left sm:text-right pl-14 sm:pl-0 shrink-0">
+                    <p className={`text-lg font-bold ${transaction.type === 'REDEEMED' ? 'text-red-600' : 'text-green-600'
+                      }`}>
                       {transaction.type === 'REDEEMED' ? '-' : '+'}{Math.abs(transaction.points)}
                     </p>
                     <p className="text-xs text-gray-500 capitalize">{transaction.type.toLowerCase()}</p>

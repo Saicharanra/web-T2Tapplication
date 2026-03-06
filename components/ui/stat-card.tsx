@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface StatCardProps {
   title: string;
@@ -29,18 +30,20 @@ const iconVariantStyles = {
   destructive: "bg-destructive/10 text-destructive",
 };
 
-export function StatCard({ 
-  title, 
-  value, 
-  icon: Icon, 
+export function StatCard({
+  title,
+  value,
+  icon: Icon,
   variant = "primary",
   trend,
-  className 
+  className
 }: StatCardProps) {
   return (
-    <div
+    <motion.div
+      whileHover={{ scale: 1.02, y: -5 }}
+      transition={{ type: "spring", stiffness: 300 }}
       className={cn(
-        "relative overflow-hidden rounded-xl border-2 p-6 transition-all duration-300 hover:shadow-medium animate-fade-in",
+        "relative overflow-hidden rounded-xl border border-white/30 p-6 transition-all duration-300 hover:shadow-2xl bg-glass animate-fade-in",
         variantStyles[variant],
         className
       )}
@@ -65,6 +68,6 @@ export function StatCard({
           <Icon className="h-6 w-6" />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
