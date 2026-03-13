@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, Trophy, TrendingUp, Calendar, Award, Flame, Recycle, X, Camera, MapPin } from "lucide-react";
+import { Upload, Trophy, TrendingUp, Calendar, Award, Flame, Recycle, X, Camera, MapPin, ChevronDown } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { usePoints } from "../context/PointsContext";
 import { useUser } from "@clerk/nextjs";
@@ -49,6 +49,24 @@ const wasteTypes: string[] = [
   "Mixed Recyclables",
 ];
 
+const pointsGuide = [
+  { category: "Plastic Bottles", points: 15, reason: "Highly recyclable but very common", color: "bg-blue-400" },
+  { category: "Paper Waste", points: 10, reason: "Easy to recycle but low processing cost", color: "bg-yellow-400" },
+  { category: "Metal Cans", points: 25, reason: "High recycling value", color: "bg-gray-400" },
+  { category: "Glass Bottles", points: 20, reason: "Recyclable but requires sorting", color: "bg-teal-400" },
+  { category: "Cardboard", points: 12, reason: "Recyclable but bulky", color: "bg-amber-600" },
+  { category: "E-Waste", points: 50, reason: "High environmental risk & valuable recovery", color: "bg-purple-500" },
+  { category: "Organic Waste", points: 18, reason: "Useful for compost but less recycling value", color: "bg-lime-500" },
+  { category: "Mixed Recyclables", points: 8, reason: "Lower points because sorting required", color: "bg-slate-400" },
+];
+
+const streakBonuses = [
+  { days: "5 Days", bonus: 20, emoji: "🔥" },
+  { days: "10 Days", bonus: 50, emoji: "⚡" },
+  { days: "15 Days", bonus: 120, emoji: "🌟" },
+  { days: "30 Days", bonus: 300, emoji: "👑" },
+];
+
 // ==== Camera Only Section Below ====
 
 export default function UserDashboard() {
@@ -69,32 +87,24 @@ export default function UserDashboard() {
   });
 
   // Form state
-  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+  const [wasteImage, setWasteImage] = useState<string | null>(null);
+  const [binImage, setBinImage] = useState<string | null>(null);
   const [wasteType, setWasteType] = useState<string>("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [location, setLocation] = useState<string>("");
   const [locationLoading, setLocationLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const [activeScanner, setActiveScanner] = useState<1 | 2 | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
     fetchSubmissions();
     fetchUserStats();
     getLocation();
-    // Refresh points from DB to ensure context is in sync
-    if (typeof refreshPoints === "function") refreshPoints();
-
-    // Auto-refresh stats every 30 seconds to stay in sync with DB
-    const interval = setInterval(() => {
-      fetchUserStats();
-      fetchSubmissions();
-      if (typeof refreshPoints === "function") refreshPoints();
-    }, 30000);
-
     return () => {
       stopCamera();
-      clearInterval(interval);
     };
     // eslint-disable-next-line
   }, []);
@@ -205,7 +215,8 @@ export default function UserDashboard() {
 
   // ==== CAMERA ACCESS & CAPTURE FUNCTIONS ====
 
-  const startCamera = async () => {
+  const startCamera = async (scannerNumber: 1 | 2) => {
+    setActiveScanner(scannerNumber);
     setCameraActive(true);
     try {
       if (
@@ -261,19 +272,20 @@ export default function UserDashboard() {
     const ctx = canvasRef.current.getContext("2d");
     if (ctx && videoRef.current) ctx.drawImage(videoRef.current, 0, 0, width, height);
     const dataUrl = canvasRef.current.toDataURL("image/jpeg");
-    setImageDataUrl(dataUrl);
+    if (activeScanner === 1) {
+      setWasteImage(dataUrl);
+    } else if (activeScanner === 2) {
+      setBinImage(dataUrl);
+    }
     stopCamera();
-  };
-
-  const clearPhoto = () => {
-    setImageDataUrl(null);
+    setActiveScanner(null);
   };
 
   const handleUpload = async () => {
-    if (!imageDataUrl || !wasteType || !location) {
+    if (!wasteImage || !binImage || !wasteType || !location) {
       toast({
         title: "❌ Missing Information",
-        description: "Please fill all fields and capture an image",
+        description: "Please capture both images and fill all fields",
         variant: "destructive",
       });
       return;
@@ -282,17 +294,40 @@ export default function UserDashboard() {
     setUploading(true);
 
     try {
+      // Stitch images vertically
+      const canvas = document.createElement('canvas');
+      const img1 = new window.Image();
+      const img2 = new window.Image();
+
+      await Promise.all([
+        new Promise(resolve => { img1.onload = resolve; img1.src = wasteImage; }),
+        new Promise(resolve => { img2.onload = resolve; img2.src = binImage; })
+      ]);
+
+      canvas.width = Math.max(img1.width, img2.width);
+      canvas.height = img1.height + img2.height;
+
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img1, 0, 0);
+        ctx.drawImage(img2, 0, img1.height);
+      }
+
+      const stitchedDataUrl = canvas.toDataURL("image/jpeg", 0.8);
+
       // Convert dataURL to Blob
       let blob: Blob;
-      if (imageDataUrl.startsWith("data:")) {
-        const binary = typeof window !== "undefined" ? window.atob(imageDataUrl.split(",")[1]) : "";
+      if (stitchedDataUrl.startsWith("data:")) {
+        const binary = typeof window !== "undefined" ? window.atob(stitchedDataUrl.split(",")[1]) : "";
         const array = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) {
           array[i] = binary.charCodeAt(i);
         }
         blob = new Blob([array], { type: "image/jpeg" });
       } else {
-        const resp = await fetch(imageDataUrl);
+        const resp = await fetch(stitchedDataUrl);
         blob = await resp.blob();
       }
       const file = new File([blob], "waste.jpg", { type: blob.type });
@@ -357,10 +392,11 @@ export default function UserDashboard() {
 
       toast({
         title: "✅ Upload Successful!",
-        description: "Your submission is pending verification.",
+        description: "Your dual submission is pending verification.",
       });
 
-      clearPhoto();
+      setWasteImage(null);
+      setBinImage(null);
       setWasteType("");
       setLocation("");
       fetchSubmissions();
@@ -465,37 +501,92 @@ export default function UserDashboard() {
                   </div>
                 </div>
               </div>
-              <h3 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent mb-3">
-                AI Waste Scanner
+              <h3 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent mb-2">
+                Two-Step Waste Scanner
               </h3>
-              <p className="text-gray-500 max-w-md mx-auto">
-                Point your camera at any recyclable item. Our AI will identify it and instantly reward you with points.
+              <p className="text-gray-600 font-medium max-w-lg mx-auto mb-1">
+                Step 1: Collection of Waste
+              </p>
+              <p className="text-gray-600 font-medium max-w-lg mx-auto">
+                Step 2: Disposed in Dustbin
               </p>
             </div>
 
             <div className="space-y-6">
-              {!imageDataUrl && !cameraActive && (
-                <div className="max-w-md w-full mx-auto">
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    suppressHydrationWarning
-                    className="group relative w-full h-48 rounded-2xl border-2 border-dashed border-green-400 bg-green-50/50 hover:bg-green-50 transition-all duration-300 overflow-hidden flex flex-col items-center justify-center gap-4 shadow-inner px-2"
-                  >
-                    {/* Hover Scanning Line Effect */}
-                    <div className="absolute top-0 left-0 w-full h-1 bg-green-400 opacity-0 group-hover:opacity-100 group-hover:animate-[scan_2s_ease-in-out_infinite]" />
-                    <div className="h-16 w-16 bg-white rounded-full flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 shrink-0">
-                      <Camera className="h-8 w-8 text-green-600" />
-                    </div>
-                    <div className="text-center">
-                      <span className="block text-lg font-bold text-green-800 truncate">Tap to Open Scanner</span>
-                      <span className="text-sm text-green-600/80">Camera access required</span>
-                    </div>
-                  </button>
+              {!cameraActive && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full max-w-3xl mx-auto">
+                  {/* Step 1 Box */}
+                  <div className="bg-white/50 p-4 rounded-2xl shadow-sm border border-white/60 backdrop-blur-sm">
+                    <h4 className="font-bold text-gray-800 mb-3 text-center">1. Collected Waste</h4>
+                    {!wasteImage ? (
+                      <button
+                        type="button"
+                        onClick={() => startCamera(1)}
+                        suppressHydrationWarning
+                        className="group relative w-full h-40 sm:h-48 rounded-xl border-2 border-dashed border-green-400 bg-green-50/50 hover:bg-green-50 transition-all duration-300 overflow-hidden flex flex-col items-center justify-center gap-3"
+                      >
+                        {/* Hover Scanning Line Effect */}
+                        <div className="absolute top-0 left-0 w-full h-1 bg-green-400 opacity-0 group-hover:opacity-100 group-hover:animate-[scan_2s_ease-in-out_infinite]" />
+                        <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform relative z-10">
+                          <Camera className="h-6 w-6 text-green-600" />
+                        </div>
+                        <span className="font-medium text-green-800">Scan Waste</span>
+                      </button>
+                    ) : (
+                      <div className="relative h-40 sm:h-48 rounded-xl overflow-hidden shadow-md border-2 border-green-400">
+                        <Image src={wasteImage} alt="Waste" fill className="object-cover" unoptimized />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent pointer-events-none" />
+                        <button
+                          className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-sm transition-colors"
+                          onClick={() => setWasteImage(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                        <span className="absolute bottom-2 left-2 bg-green-500 text-white px-2 py-0.5 rounded text-xs font-bold">Captured</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Step 2 Box */}
+                  <div className="bg-white/50 p-4 rounded-2xl shadow-sm border border-white/60 backdrop-blur-sm">
+                    <h4 className="font-bold text-gray-800 mb-3 text-center">2. Disposal in Bin</h4>
+                    {!binImage ? (
+                      <button
+                        type="button"
+                        onClick={() => startCamera(2)}
+                        suppressHydrationWarning
+                        className="group relative w-full h-40 sm:h-48 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/50 hover:bg-blue-50 transition-all duration-300 overflow-hidden flex flex-col items-center justify-center gap-3"
+                      >
+                        {/* Hover Scanning Line Effect */}
+                        <div className="absolute top-0 left-0 w-full h-1 bg-blue-400 opacity-0 group-hover:opacity-100 group-hover:animate-[scan_2s_ease-in-out_infinite]" />
+                        <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform relative z-10">
+                          <Camera className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <span className="font-medium text-blue-800">Scan Dustbin</span>
+                      </button>
+                    ) : (
+                      <div className="relative h-40 sm:h-48 rounded-xl overflow-hidden shadow-md border-2 border-blue-400">
+                        <Image src={binImage} alt="Dustbin" fill className="object-cover" unoptimized />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent pointer-events-none" />
+                        <button
+                          className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-sm transition-colors"
+                          onClick={() => setBinImage(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                        <span className="absolute bottom-2 left-2 bg-blue-500 text-white px-2 py-0.5 rounded text-xs font-bold">Captured</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               {cameraActive && (
                 <div className="relative max-w-md mx-auto group">
+                  <div className="text-center mb-4">
+                    <span className="inline-block bg-green-100 text-green-800 font-bold px-4 py-1.5 rounded-full shadow-sm border border-green-200">
+                      {activeScanner === 1 ? "Scanning Collected Waste..." : "Scanning Disposal in Bin..."}
+                    </span>
+                  </div>
                   <div className="rounded-2xl overflow-hidden border-2 border-green-400/50 shadow-2xl relative">
                     {/* Active Laser Overlay */}
                     <div className="absolute inset-0 z-10 pointer-events-none">
@@ -531,49 +622,57 @@ export default function UserDashboard() {
                   </div>
                 </div>
               )}
-              {imageDataUrl && (
-                <div className="relative w-full max-w-md mx-auto">
-                  <div className="relative h-64 sm:h-80 rounded-2xl overflow-hidden border-2 border-green-400 shadow-xl">
-                    <Image
-                      src={imageDataUrl}
-                      alt="Captured preview"
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                    <div className="absolute bottom-4 left-4 right-4 text-center z-10">
-                      <span className="bg-green-500/90 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-sm backdrop-blur-sm border border-white/20">
-                        Image Captured!
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-md transition-colors border border-white/20"
-                    onClick={clearPhoto}
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              )}
               {/* Form Fields */}
               <div className="max-w-md mx-auto space-y-4 sm:space-y-5 bg-white/40 p-4 sm:p-6 rounded-2xl border border-white/60 shadow-sm backdrop-blur-sm mt-6 sm:mt-8">
-                <div className="space-y-2">
+                <div className="space-y-2 relative">
                   <Label htmlFor="wasteType" className="text-gray-700 font-semibold ml-1">Waste Type</Label>
-                  <select
-                    id="wasteType"
-                    value={wasteType}
-                    onChange={(e) => setWasteType(e.target.value)}
-                    suppressHydrationWarning
-                    className="w-full p-3 bg-white/70 border border-white shadow-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-shadow text-gray-800"
-                  >
-                    <option value="">Select waste type...</option>
-                    {wasteTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setDropdownOpen(!dropdownOpen)}
+                      suppressHydrationWarning
+                      className="w-full p-4 bg-white/80 border border-white shadow-[0_2px_10px_rgba(0,0,0,0.05)] rounded-xl flex items-center justify-between text-gray-800 hover:bg-white transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      {wasteType ? (
+                        <span className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full ${pointsGuide.find(p => p.category === wasteType)?.color || 'bg-green-500'} shadow-sm`}></div>
+                          <span className="font-medium text-gray-900">{wasteType}</span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-500 font-medium">Select waste type...</span>
+                      )}
+                      <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform duration-300 ${dropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {dropdownOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setDropdownOpen(false)}
+                        ></div>
+                        <div className="absolute top-[calc(100%+8px)] left-0 right-0 bg-white/95 backdrop-blur-xl rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.1)] border border-gray-100/50 overflow-hidden z-50 transform origin-top transition-all duration-200 animate-in fade-in slide-in-from-top-2">
+                          <div className="max-h-60 overflow-y-auto w-full hide-scrollbar">
+                            {pointsGuide.map((item) => (
+                              <button
+                                key={item.category}
+                                type="button"
+                                className={`w-full text-left px-4 py-3 flex items-center justify-between transition-colors border-b border-gray-50 last:border-0 hover:bg-green-50/80 ${wasteType === item.category ? 'bg-green-50/50' : ''}`}
+                                onClick={() => {
+                                  setWasteType(item.category);
+                                  setDropdownOpen(false);
+                                }}
+                              >
+                                <span className="flex items-center gap-3">
+                                  <div className={`w-3 h-3 rounded-full ${item.color} shadow-sm`}></div>
+                                  <span className={`font-medium ${wasteType === item.category ? 'text-green-700' : 'text-gray-800'}`}>{item.category}</span>
+                                </span>
+                                <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-1 rounded-full shadow-sm">{item.points} Pts</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="location" className="flex items-center gap-2 text-gray-700 font-semibold ml-1">
@@ -616,16 +715,16 @@ export default function UserDashboard() {
                   size="lg"
                   className="w-full bg-gradient-eco hover:shadow-xl hover:scale-[1.02] text-white rounded-xl h-14 font-bold text-lg transition-all"
                   onClick={handleUpload}
-                  disabled={uploading || !imageDataUrl || !wasteType || !location}
+                  disabled={uploading || !wasteImage || !binImage || !wasteType || !location}
                   suppressHydrationWarning
                 >
                   {uploading ? (
                     <>
                       <Recycle className="mr-2 h-5 w-5 animate-spin" />
-                      Uploading...
+                      Uploading Dual Image...
                     </>
                   ) : (
-                    "Submit Waste Image"
+                    "Submit Scans for Verification"
                   )}
                 </Button>
               </div>
@@ -633,6 +732,76 @@ export default function UserDashboard() {
           </div>
         </CardContent>
       </Card>
+      {/* Points & Bonuses Guide */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <Card className="xl:col-span-2 border-0 shadow-md bg-white overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100 pb-4">
+            <CardTitle className="flex items-center gap-2 text-xl text-green-800">
+              <Recycle className="h-6 w-6 text-green-600" />
+              Waste Categories & Points
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-green-800 uppercase bg-green-50/50">
+                  <tr>
+                    <th className="px-6 py-4 font-bold">Waste Category</th>
+                    <th className="px-6 py-4 font-bold text-center">Points</th>
+                    <th className="px-6 py-4 font-bold hidden sm:table-cell">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {pointsGuide.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-green-50/30 transition-colors">
+                      <td className="px-6 py-4 font-medium text-gray-900 flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${item.color} shadow-sm shrink-0`}></div>
+                        {item.category}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-green-100 text-green-700 font-bold text-xs shrink-0 whitespace-nowrap shadow-sm">
+                          {item.points} Pts
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-gray-500 hidden sm:table-cell text-xs leading-relaxed max-w-xs">
+                        {item.reason}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-md bg-white overflow-hidden flex flex-col">
+          <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 border-b border-orange-100 pb-4">
+            <CardTitle className="flex items-center gap-2 text-xl text-orange-800">
+              <Flame className="h-6 w-6 text-orange-600" />
+              Streak Bonuses
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 flex-1 flex flex-col">
+            <div className="p-4 sm:p-5 text-sm text-gray-600 bg-orange-50/30 border-b border-orange-50 font-medium">
+              Maintain a daily scanning streak and earn massive bonuses on top of your regular points!
+            </div>
+            <ul className="divide-y divide-gray-100 flex-1 flex flex-col">
+              {streakBonuses.map((streak, idx) => (
+                <li key={idx} className="flex items-center justify-between p-4 sm:p-5 hover:bg-orange-50/30 transition-colors flex-1">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl filter drop-shadow-sm">{streak.emoji}</span>
+                    <span className="font-bold text-gray-800 text-base">{streak.days}</span>
+                  </div>
+                  <span className="inline-flex items-center justify-center px-4 py-1.5 rounded-full bg-gradient-to-r from-orange-100 to-red-100 text-orange-700 font-bold shadow-sm whitespace-nowrap">
+                    +{streak.bonus} Pts
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Badges */}
       <Card>
         <CardHeader>
@@ -737,4 +906,3 @@ export default function UserDashboard() {
     </div>
   );
 }
-

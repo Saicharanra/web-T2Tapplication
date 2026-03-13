@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Camera, CheckCircle, Coins, Leaf } from "lucide-react";
 import binsImg from "@/assets/Dust.png";
 import { motion } from "framer-motion";
-import Footer from "../footer/page"; // import Footer as a component (capitalize for React components)
+import Footer from "../footer/page"; 
 
 export default function Homepage() {
   return (

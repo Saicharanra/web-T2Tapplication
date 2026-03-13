@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, XCircle, UserCircle, MapPin, Calendar, Filter, Recycle, Eye, Download, Coins } from "lucide-react";
+import { CheckCircle2, XCircle, UserCircle, MapPin, Calendar, Filter, Recycle, Eye, Download, Coins, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 interface Submission {
@@ -90,52 +90,7 @@ export default function SubmissionsPage() {
         console.warn('⚠️ No submissions returned from API');
       }
 
-      let fetchedSubmissions = data.submissions || [];
-      // Mock data injection for showcase
-      if (fetchedSubmissions.length === 0) {
-        fetchedSubmissions = [
-          {
-            id: 'mock-1',
-            userId: 'USR004',
-            wasteType: 'Cardboard Boxes',
-            imageUrl: 'https://images.pexels.com/photos/3735218/pexels-photo-3735218.jpeg',
-            imagePath: '',
-            location: 'Karimnagar, Telangana',
-            pointsAwarded: 0,
-            status: 'PENDING',
-            createdAt: '2025-01-15T16:50:00Z',
-            description: 'Large cardboard boxes from electronics packaging',
-            user: { name: 'Venkat Rao', email: 'venkat.rao@gmail.com' }
-          },
-          {
-            id: 'mock-2',
-            userId: 'USR001',
-            wasteType: 'Plastic Bottles',
-            imageUrl: 'https://images.pexels.com/photos/3735218/pexels-photo-3735218.jpeg',
-            imagePath: '',
-            location: 'Hyderabad, Telangana',
-            pointsAwarded: 0,
-            status: 'PENDING',
-            createdAt: '2025-01-15T16:00:00Z',
-            description: 'Collection of 15 plastic water bottles from office premises',
-            user: { name: 'Priya Sharma', email: 'priya.sharma@gmail.com' }
-          },
-          {
-            id: 'mock-3',
-            userId: 'USR002',
-            wasteType: 'Aluminum Cans',
-            imageUrl: 'https://images.pexels.com/photos/802221/pexels-photo-802221.jpeg',
-            imagePath: '',
-            location: 'Warangal, Telangana',
-            pointsAwarded: 35,
-            status: 'VERIFIED',
-            createdAt: '2025-01-15T14:45:00Z',
-            description: 'Aluminum beverage cans collected from local market',
-            user: { name: 'Rajesh Kumar', email: 'rajesh.kumar@gmail.com' }
-          }
-        ];
-      }
-
+      const fetchedSubmissions = data.submissions || [];
       setSubmissions(fetchedSubmissions);
 
       toast({
@@ -242,6 +197,38 @@ export default function SubmissionsPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDelete = async (id: string, userName: string) => {
+    if (!confirm(`Are you sure you want to delete ${userName}'s submission? This will also delete the photo permanently.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/submissions/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete submission');
+      }
+
+      toast({
+        title: "🗑️ Submission Deleted",
+        description: `${userName}'s submission and photo have been permanently deleted.`,
+      });
+
+      // Refresh submissions
+      fetchSubmissions();
+    } catch (error) {
+      console.error('Error deleting:', error);
+      toast({
+        title: "❌ Error",
+        description: error instanceof Error ? error.message : "Failed to delete submission",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -459,12 +446,28 @@ export default function SubmissionsPage() {
                           Assign<br /><span className="text-[10px]">Points</span>
                         </Button>
                       </div>
+                      <Button
+                        variant="ghost"
+                        className="w-full mt-2 text-red-500 hover:text-red-700 hover:bg-red-50 font-medium h-9"
+                        onClick={() => handleDelete(submission.id, submission.user?.name || 'User')}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5" />
+                        Delete Submission
+                      </Button>
                     </div>
                   ) : (
-                    <div className="pt-2 mt-2">
+                    <div className="pt-2 mt-2 space-y-2">
                       <div className="w-full bg-black/20 text-black/40 py-2 rounded-lg text-center font-bold text-sm select-none">
                         ✓ {submission.status.substring(0, 1) + submission.status.substring(1).toLowerCase()}
                       </div>
+                      <Button
+                        variant="ghost"
+                        className="w-full text-red-500 hover:text-red-700 hover:bg-red-50 font-medium h-9"
+                        onClick={() => handleDelete(submission.id, submission.user?.name || 'User')}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5" />
+                        Delete Submission
+                      </Button>
                     </div>
                   )}
                 </div>
