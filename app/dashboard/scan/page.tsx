@@ -12,6 +12,7 @@ import { Upload, Trophy, TrendingUp, Calendar, Award, Flame, Recycle, X, Camera,
 import { useToast } from "@/components/ui/use-toast";
 import { usePoints } from "../context/PointsContext";
 import { useUser } from "@clerk/nextjs";
+import CountUp from "react-countup";
 
 // Only define types, not interfaces (for better compatibility in TS/Next builds)
 type Submission = {
@@ -438,7 +439,7 @@ export default function UserDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-green-700">Total Points</p>
-                <p className="text-3xl font-bold text-green-900 mt-1">{pointsContext?.points ?? userStats.totalPoints}</p>
+                <p className="text-3xl font-bold text-green-900 mt-1"><CountUp end={pointsContext?.points ?? userStats.totalPoints} duration={2.5} separator="," /></p>
               </div>
               <div className="h-12 w-12 bg-green-200 rounded-full flex items-center justify-center">
                 <span className="text-2xl">🪙</span>
@@ -464,7 +465,7 @@ export default function UserDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-purple-700">Submissions</p>
-                <p className="text-3xl font-bold text-purple-900 mt-1">{userStats.totalSubmissions}</p>
+                <p className="text-3xl font-bold text-purple-900 mt-1"><CountUp end={userStats.totalSubmissions} duration={2.5} separator="," /></p>
               </div>
               <div className="h-12 w-12 bg-purple-200 rounded-full flex items-center justify-center">
                 <TrendingUp className="h-6 w-6 text-purple-700" />
@@ -477,7 +478,7 @@ export default function UserDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-orange-700">Day Streak</p>
-                <p className="text-3xl font-bold text-orange-900 mt-1">{userStats.streak}</p>
+                <p className="text-3xl font-bold text-orange-900 mt-1"><CountUp end={userStats.streak} duration={2.5} separator="," /></p>
               </div>
               <div className="h-12 w-12 bg-orange-200 rounded-full flex items-center justify-center">
                 <Flame className="h-6 w-6 text-orange-700" />

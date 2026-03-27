@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 import { motion } from "framer-motion";
+import CountUp from "react-countup";
 
 interface StatCardProps {
   title: string;
@@ -30,6 +31,25 @@ const iconVariantStyles = {
   destructive: "bg-destructive/10 text-destructive",
 };
 
+function AnimatedValue({ value }: { value: string | number }) {
+  if (typeof value === 'number') {
+    return <CountUp end={value} duration={2.5} separator="," />;
+  }
+  
+  const stripped = value.replace(/,/g, '');
+  const match = stripped.match(/^([\d.]+)(.*)$/);
+  
+  if (match) {
+    const num = parseFloat(match[1]);
+    const suffix = match[2];
+    const decimals = match[1].includes('.') ? match[1].split('.')[1].length : 0;
+    
+    return <CountUp end={num} decimals={decimals} duration={2.5} separator="," suffix={suffix} />;
+  }
+  
+  return <>{value}</>;
+}
+
 export function StatCard({
   title,
   value,
@@ -51,7 +71,7 @@ export function StatCard({
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-sm font-medium text-muted-foreground mb-1">{title}</p>
-          <p className="text-3xl font-bold text-foreground">{value}</p>
+          <p className="text-3xl font-bold text-foreground"><AnimatedValue value={value} /></p>
           {trend && (
             <p className={cn(
               "text-xs font-medium mt-2",

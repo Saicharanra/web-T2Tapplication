@@ -8,6 +8,7 @@ import { Wallet as WalletIcon, TrendingUp, Download, Gift, ArrowUpRight, Recycle
 import { useToast } from "@/components/ui/use-toast";
 import { usePoints } from "../context/PointsContext";
 //import { useUser } from "@clerk/nextjs";
+import CountUp from "react-countup";
 
 interface PointsHistory {
   id: string;
@@ -179,7 +180,7 @@ export default function WalletPage() {
               <div className="flex items-center gap-3">
                 <span className="text-5xl">🪙</span>
                 <span className="text-5xl font-bold">
-                  {globalPoints.toLocaleString()}
+                  <CountUp end={globalPoints} duration={2.5} separator="," />
                 </span>
               </div>
               <p className="text-white/80 mt-2">Points</p>
@@ -209,7 +210,7 @@ export default function WalletPage() {
               <div>
                 <p className="text-sm text-gray-600">This Month</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  +{walletData.thisMonthPoints.toLocaleString()}
+                  +<CountUp end={walletData.thisMonthPoints} duration={2.5} separator="," />
                 </p>
               </div>
             </div>
@@ -225,7 +226,7 @@ export default function WalletPage() {
               <div>
                 <p className="text-sm text-gray-600">Total Earned</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {walletData.totalEarned.toLocaleString()}
+                  <CountUp end={walletData.totalEarned} duration={2.5} separator="," />
                 </p>
               </div>
             </div>
@@ -241,7 +242,7 @@ export default function WalletPage() {
               <div>
                 <p className="text-sm text-gray-600">Redeemed</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {walletData.totalRedeemed.toLocaleString()}
+                  <CountUp end={walletData.totalRedeemed} duration={2.5} separator="," />
                 </p>
               </div>
             </div>
