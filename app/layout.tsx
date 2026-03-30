@@ -81,11 +81,19 @@ const clerkAppearance = {
     identityPreview: "rounded-xl border-gray-200 bg-gray-50 mb-4",
     identityPreviewEditButton: "text-teal-600 hover:text-teal-700",
     
+    // User menu / Sign-out popover styles
+    userButtonPopoverCard: "bg-white/95 backdrop-blur-xl border border-gray-100/80 shadow-2xl rounded-2xl",
+    userButtonPopoverActionButton: "hover:bg-teal-50 text-gray-700 hover:text-teal-700 transition-colors",
+    userButtonPopoverActionButtonText: "text-sm font-semibold",
+    userPreviewMainIdentifier: "font-semibold text-gray-900",
+    userPreviewSecondaryIdentifier: "text-gray-500",
+    
     // Hide the "Secured by Clerk" footer branding
     // Note: On the Free plan, this CSS hides it visually but Clerk may still render it.
     // On paid plans, you can set `afterSignInUrl` branding options to fully remove it.
     footer: "hidden",
     footerAction: "mt-6",
+    userButtonPopoverFooter: "hidden",
   },
 };
 

@@ -204,3 +204,8 @@
   display: none;
   /* Chrome, Safari and Opera */
 }
+
+/* Force hide all Clerk Developer / Secured By footers from the user popovers */
+.cl-userButtonPopoverFooter, .cl-footer {
+  display: none !important;
+}

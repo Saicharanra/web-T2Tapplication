@@ -341,25 +341,57 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {[
-              { name: "First Upload", emoji: "🎯", earned: true },
-              { name: "Eco Warrior", emoji: "🌱", earned: true },
-              { name: "100 Points", emoji: "💯", earned: true },
-              { name: "Weekly Streak", emoji: "🔥", earned: false },
-              { name: "Top 10", emoji: "🏆", earned: true },
-              { name: "Recycling Pro", emoji: "♻️", earned: false },
-            ].map((badge) => (
-              <div
-                key={badge.name}
-                className={`p-4 rounded-xl text-center transition-all duration-300 hover:scale-110 ${badge.earned
-                  ? "bg-gradient-to-br from-yellow-100 to-amber-200 border border-yellow-300 shadow-md"
-                  : "bg-white/40 border border-white/50 opacity-60"
-                  }`}
-              >
-                <div className="text-4xl mb-2 drop-shadow-sm">{badge.emoji}</div>
-                <p className="text-xs font-bold text-gray-900">{badge.name}</p>
-              </div>
-            ))}
+            {(() => {
+              const badges = [
+                { id: "first_upload", name: "First Upload", emoji: "🎯", earned: (userStats?.totalSubmissions || 0) >= 1 },
+                { id: "eco_warrior", name: "Eco Warrior", emoji: "🌱", earned: globalPoints >= 500 },
+                { id: "100_points", name: "100 Points", emoji: "💯", earned: globalPoints >= 100 },
+                { id: "weekly_streak", name: "Weekly Streak", emoji: "🔥", earned: (userStats?.streak || 0) >= 7 },
+                { id: "top_10", name: "Top 10", emoji: "🏆", earned: !!(userStats?.rank && userStats.rank <= 10 && userStats.rank > 0) },
+                { id: "recycling_pro", name: "Recycling Pro", emoji: "♻️", earned: (userStats?.verifiedSubmissions || 0) >= 10 },
+              ];
+
+              if (typeof window !== 'undefined' && userStats) {
+                const currentEarnedIds = badges.filter(b => b.earned).map(b => b.id);
+                const storedEarned = localStorage.getItem('earned_badges');
+                const previousEarned = storedEarned ? JSON.parse(storedEarned) : null;
+
+                if (previousEarned !== null) {
+                  const newlyEarned = currentEarnedIds.filter(id => !previousEarned.includes(id));
+                  if (newlyEarned.length > 0) {
+                    // Slight delay to avoid React render warning during toast
+                    setTimeout(() => {
+                      newlyEarned.forEach(id => {
+                        const badge = badges.find(b => b.id === id);
+                        toast({
+                          title: `Badge Unlocked! ${badge?.emoji}`,
+                          description: `Congratulations! You've earned the "${badge?.name}" badge.`,
+                        });
+                      });
+                      localStorage.setItem('earned_badges', JSON.stringify([...previousEarned, ...newlyEarned]));
+                    }, 0);
+                  }
+                } else if (currentEarnedIds.length > 0) {
+                  localStorage.setItem('earned_badges', JSON.stringify(currentEarnedIds));
+                }
+              }
+
+              return badges.map((badge) => (
+                <div
+                  key={badge.name}
+                  className={`p-4 rounded-xl text-center transition-all duration-300 ${badge.earned
+                    ? "bg-gradient-to-br from-yellow-100 to-amber-200 border border-yellow-300 shadow-md hover:scale-110"
+                    : "bg-gray-100 border border-gray-200 opacity-60 grayscale hover:grayscale-0"
+                    }`}
+                >
+                  <div className="text-4xl mb-2 drop-shadow-sm">{badge.emoji}</div>
+                  <p className="text-xs font-bold text-gray-900">{badge.name}</p>
+                  {!badge.earned && (
+                    <div className="mt-2 text-[10px] text-gray-500 font-medium tracking-tighter">🔒 LOCKED</div>
+                  )}
+                </div>
+              ));
+            })()}
           </div>
         </CardContent>
       </Card>
