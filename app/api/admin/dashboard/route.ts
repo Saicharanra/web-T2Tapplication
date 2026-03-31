@@ -39,7 +39,7 @@ export async function GET(_req: NextRequest) {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const { count: newThisWeek } = await supabase.from("User")
       .select("*", { count: "exact", head: true })
-      .gte("createdAt", sevenDaysAgo.toISOString());
+      .gte("joinedAt", sevenDaysAgo.toISOString());
 
     // 2. Submission Stats
     const { count: pendingSubmissions } = await supabase.from("Submission").select("*", { count: "exact", head: true }).eq('status', 'PENDING');
@@ -49,12 +49,12 @@ export async function GET(_req: NextRequest) {
     const { count: verifiedToday } = await supabase.from("Submission")
       .select("*", { count: "exact", head: true })
       .eq('status', 'VERIFIED')
-      .gte("updatedAt", today.toISOString());
+      .gte("verifiedAt", today.toISOString());
 
     const { count: rejectedToday } = await supabase.from("Submission")
       .select("*", { count: "exact", head: true })
       .eq('status', 'REJECTED')
-      .gte("updatedAt", today.toISOString());
+      .gte("createdAt", today.toISOString());
 
     // 3. Points Awarded
     const { data: submissions } = await supabase.from("Submission").select("pointsAwarded").eq('status', 'VERIFIED');

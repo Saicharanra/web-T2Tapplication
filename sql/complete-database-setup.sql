@@ -693,11 +693,14 @@ WHERE "imageUrl" = '' OR "imageUrl" = 'undefined';
 UPDATE "Submission"
 SET "pointsAwarded" = 
   CASE "wasteType"
-    WHEN 'Plastic' THEN 50
-    WHEN 'Metal' THEN 75
-    WHEN 'Glass' THEN 60
-    WHEN 'Paper' THEN 40
-    WHEN 'Electronic' THEN 100
+    WHEN 'Plastic Bottles' THEN 15
+    WHEN 'paperWaste' THEN 10
+    WHEN 'Metal Cans' THEN 25
+    WHEN 'Glass Bottles' THEN 20
+    WHEN 'Cardboard' THEN 12
+    WHEN 'E-waste' THEN 50
+    WHEN 'Organic waste'  THEN 18
+    WHEN 'Mixed Recyclables' THEN 15
     ELSE 50
   END
 WHERE status = 'VERIFIED';

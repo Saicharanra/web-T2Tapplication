@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch only active rewards
     const { data: rewards, error } = await supabase
-      .from("Rewards")
+      .from("Reward")
       .select("reward_id, title, description, points_required, image_url, status, category, stock")
       .eq("status", "Active")
       .order("points_required", { ascending: true });
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     // Fetch the reward
     const { data: reward, error: rewardError } = await supabase
-      .from("Rewards")
+      .from("Reward")
       .select("*")
       .eq("reward_id", reward_id)
       .eq("status", "Active")
@@ -109,12 +109,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Record redemption
-    const { error: redemptionError } = await supabase
-      .from("Reward_Redemptions")
+    const { data: redemptionData, error: redemptionError } = await supabase
+      .from("RewardRedemption")
       .insert({
         reward_id: reward.reward_id,
         user_id: userId,
-      });
+      })
+      .select("redemption_id")
+      .single();
 
     if (redemptionError) {
       console.error("Error recording redemption:", redemptionError);
@@ -129,7 +131,7 @@ export async function POST(req: NextRequest) {
     // Decrease stock (if not unlimited)
     if (reward.stock !== 999) {
       await supabase
-        .from("Rewards")
+        .from("Reward")
         .update({ stock: reward.stock - 1 })
         .eq("reward_id", reward.reward_id);
     }
@@ -137,6 +139,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       message: "Reward redeemed successfully!",
       newPoints: user.points - reward.points_required,
+      redemption_id: redemptionData?.redemption_id,
       reward: {
         title: reward.title,
         points_required: reward.points_required,

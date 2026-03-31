@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
     const { data: users, error: usersError } = await supabase
       .from("User")
       .select("*")
-      .order("createdAt", { ascending: false })
+      .order("joinedAt", { ascending: false })
       .range(offset, offset + limit - 1);
 
     console.log('Users query result:', { usersCount: users?.length || 0, usersError });
@@ -121,6 +121,7 @@ export async function GET(req: NextRequest) {
         verifiedSubmissions: submissionStats.verified,
         pendingSubmissions: submissionStats.pending,
         rejectedSubmissions: submissionStats.rejected,
+        createdAt: user.joinedAt,
       };
     }) || [];
 
@@ -132,7 +133,7 @@ export async function GET(req: NextRequest) {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const newThisWeek = enhancedUsers?.filter(u => 
-      new Date(u.createdAt) >= sevenDaysAgo
+      new Date(u.joinedAt) >= sevenDaysAgo
     ).length || 0;
 
     // Top contributors (users with most verified submissions)

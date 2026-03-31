@@ -84,9 +84,22 @@ export default function RewardPage() {
     }
   }, []);
 
+  const fetchHistory = useCallback(async () => {
+    try {
+      const res = await fetch("/api/rewards/history");
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data.history || []);
+      }
+    } catch (err) {
+      console.error("Failed to load history:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchRewards();
-  }, [fetchRewards]);
+    fetchHistory();
+  }, [fetchRewards, fetchHistory]);
 
   /* ──────────── Computed values ──────────── */
 
@@ -127,9 +140,9 @@ export default function RewardPage() {
       // Update local points
       setPoints(data.newPoints);
 
-      // Generate display code
-      const baseCode = reward.title.substring(0, 4).toUpperCase().replace(/\s/g, "X");
-      const code = `${baseCode}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      // Extract real redemption ID
+      const realId = data.redemption_id || Math.floor(Math.random() * 10000);
+      const code = `RWD-${String(realId).padStart(6, '0')}`;
 
       setRedeemedReward(reward);
       setRedemptionCode(code);
@@ -146,15 +159,8 @@ export default function RewardPage() {
 
       setTimeout(() => {
         setIsCelebrating(false);
-        setHistory((prev) => [
-          {
-            id: Date.now(),
-            name: reward.title,
-            date: new Date().toISOString().split("T")[0],
-            code,
-          },
-          ...prev,
-        ]);
+        // Refresh local history list from API directly to ensure DB sync
+        fetchHistory();
       }, 2800);
 
       // Refresh rewards list to update stock

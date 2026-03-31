@@ -76,7 +76,7 @@ export async function PUT(
     if (stock !== undefined) updateData.stock = stock;
 
     const { data: reward, error } = await supabase
-      .from("Rewards")
+      .from("Reward")
       .update(updateData)
       .eq("reward_id", rewardId)
       .select()
@@ -131,7 +131,7 @@ export async function DELETE(
     }
 
     const { error } = await supabase
-      .from("Rewards")
+      .from("Reward")
       .delete()
       .eq("reward_id", rewardId);
 

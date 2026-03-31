@@ -33,13 +33,13 @@ export async function GET(req: NextRequest) {
 
     // Fetch redemptions with reward and user info via joins
     const { data: redemptions, error } = await supabase
-      .from("Reward_Redemptions")
+      .from("RewardRedemption")
       .select(`
         redemption_id,
         redeemed_at,
         reward_id,
         user_id,
-        Rewards (
+        Reward (
           title,
           points_required,
           image_url
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
 
       // Fallback: fetch without joins if the join syntax fails
       const { data: fallbackRedemptions, error: fallbackError } = await supabase
-        .from("Reward_Redemptions")
+        .from("RewardRedemption")
         .select("*")
         .order("redeemed_at", { ascending: false })
         .limit(limit);
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
 
       const [rewardsResult, usersResult] = await Promise.all([
         rewardIds.length > 0
-          ? supabase.from("Rewards").select("reward_id, title, points_required, image_url").in("reward_id", rewardIds)
+          ? supabase.from("Reward").select("reward_id, title, points_required, image_url").in("reward_id", rewardIds)
           : { data: [], error: null },
         userIds.length > 0
           ? supabase.from("User").select("id, name, email, \"imageUrl\"").in("id", userIds)
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
 
     // Transform joined data
     const transformedRedemptions = redemptions?.map((r) => {
-      const rewardData = (r as unknown as Record<string, unknown>).Rewards as Record<string, unknown> | null;
+      const rewardData = (r as unknown as Record<string, unknown>).Reward as Record<string, unknown> | null;
       const userData = (r as unknown as Record<string, unknown>).User as Record<string, unknown> | null;
       return {
         redemption_id: r.redemption_id,

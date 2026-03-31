@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch all rewards
     let query = supabase
-      .from("Rewards")
+      .from("Reward")
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch redemption counts per reward
     const { data: redemptions, error: redemptionsError } = await supabase
-      .from("Reward_Redemptions")
+      .from("RewardRedemption")
       .select("reward_id");
 
     if (redemptionsError) {
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: reward, error } = await supabase
-      .from("Rewards")
+      .from("Reward")
       .insert({
         title: title.trim(),
         description: description?.trim() || "",
