@@ -1,10 +1,20 @@
 'use client';
 
+import { useEffect } from "react";
 import { SignUp } from "@clerk/nextjs";
 import Link from "next/link";
 import { Recycle, Sparkles, Award, Shield } from "lucide-react";
 
 export default function SignUpPage() {
+  // Prevent scrolling on the body when this page is mounted
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow || '';
+    };
+  }, []);
+
   return (
     <div className="min-h-screen flex relative overflow-hidden">
       {/* ── Left: Branding Panel ── */}
@@ -20,7 +30,16 @@ export default function SignUpPage() {
         <div className="relative z-10 flex flex-col justify-center px-16 text-white max-w-lg">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-xl border border-white/20">
-              <Recycle className="h-8 w-8 text-white" />
+            <img
+                src="/logo.png"
+                alt="Trash2Treasure Logo"
+                className="w-full h-full object-contain rounded-lg shadow-lg transition-transform duration-300 ease-in-out hover:scale-105 hover:brightness-105"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(240,253,244,0.15) 100%)",
+                  padding: '0.1rem'
+                }}
+              />
             </div>
             <span className="text-3xl font-extrabold tracking-tight">T2T</span>
           </div>
