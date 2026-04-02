@@ -136,6 +136,20 @@ export async function POST(req: NextRequest) {
         .eq("reward_id", reward.reward_id);
     }
 
+    // Record redemption in PointsHistory for wallet transaction history
+    const { error: historyError } = await supabase
+      .from("PointsHistory")
+      .insert({
+        userId: userId,
+        points: -reward.points_required,
+        description: `Redeemed for ${reward.title}`,
+        type: "REDEEMED",
+      });
+
+    if (historyError) {
+      console.error("Error creating points history for redemption:", historyError);
+    }
+
     return NextResponse.json({
       message: "Reward redeemed successfully!",
       newPoints: user.points - reward.points_required,

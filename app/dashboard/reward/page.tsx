@@ -167,7 +167,7 @@ export default function RewardPage() {
       await fetchRewards();
     } catch (err) {
       toast({
-        title: "Redemption Failed",
+        title: "Reward already Claimed",
         description: err instanceof Error ? err.message : "Something went wrong",
         variant: "destructive",
       });

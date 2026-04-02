@@ -60,37 +60,7 @@ export default function WalletPage() {
       const response = await fetch('/api/wallet');
 
       if (!response.ok) {
-        console.warn('Backend API unavailable (likely missing DB config). Displaying 300-point demo wallet state.');
-        setWalletData({
-          totalPoints: 300,
-          thisMonthPoints: 300,
-          totalEarned: 300,
-          totalRedeemed: 0,
-          transactions: [
-            {
-              id: "tx-1",
-              points: 150,
-              description: "Recycled 15 Plastic Bottles",
-              type: "EARNED",
-              createdAt: new Date().toISOString()
-            },
-            {
-              id: "tx-2",
-              points: 100,
-              description: "Recycled Cardboard Boxes",
-              type: "EARNED",
-              createdAt: new Date(Date.now() - 86400000).toISOString()
-            },
-            {
-              id: "tx-3",
-              points: 50,
-              description: "Daily Streak Bonus",
-              type: "BONUS",
-              createdAt: new Date(Date.now() - 172800000).toISOString()
-            }
-          ],
-        });
-        return;
+        throw new Error('Failed to fetch wallet data');
       }
 
       const data = await response.json();
@@ -99,8 +69,12 @@ export default function WalletPage() {
       setWalletData(data);
 
     } catch (error) {
-      console.warn('Backend API unavailable or error fetching wallet data:', error);
-      // Suppress the destructive toast if this is just a missing DB config issue.
+      console.error('❌ Error fetching wallet data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load wallet data. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
