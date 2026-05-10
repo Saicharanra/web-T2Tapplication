@@ -1,0 +1,90 @@
+<!-- 
+  BROWSER DIAGNOSTIC SCRIPT
+  Copy and paste this entire code into your browser console (F12) while on the dashboard
+  It will tell you exactly what's wrong
+-->
+
+<script>
+(async function diagnosticCheck() {
+  console.log('🔍 Running Trash2Treasure Diagnostic...\n');
+  
+  // 1. Check if user is signed in
+  console.log('1️⃣ Checking Authentication...');
+  const clerkUser = window.Clerk?.user;
+  if (!clerkUser) {
+    console.error('❌ NOT SIGNED IN - You need to sign in first!');
+    return;
+  }
+  console.log('✅ Signed in as:', clerkUser.primaryEmailAddress?.emailAddress);
+  console.log('📋 Your Clerk User ID:', clerkUser.id);
+  console.log('   ⚠️ IMPORTANT: Copy this ID! ☝️\n');
+  
+  // 2. Check if user exists in database
+  console.log('2️⃣ Checking Database...');
+  try {
+    const response = await fetch('/api/users/stats');
+    if (response.ok) {
+      const stats = await response.json();
+      console.log('✅ User exists in database!');
+      console.log('   Points:', stats.totalPoints);
+      console.log('   Level:', stats.level);
+      console.log('   Submissions:', stats.totalSubmissions);
+    } else if (response.status === 500) {
+      console.error('❌ USER NOT IN DATABASE!');
+      console.error('   This is why uploads fail!');
+      console.error('\n   FIX: Run this SQL in Supabase SQL Editor:');
+      console.error(`   
+INSERT INTO "User" (id, name, email, role, level, points, status)
+VALUES (
+  '${clerkUser.id}',
+  '${clerkUser.firstName || 'Your'} ${clerkUser.lastName || 'Name'}',
+  '${clerkUser.primaryEmailAddress?.emailAddress}',
+  'USER',
+  'BRONZE',
+  0,
+  'ACTIVE'
+);
+      `);
+      console.error('\n   Then refresh the page and try again!');
+      return;
+    }
+  } catch (error) {
+    console.error('❌ Error checking database:', error);
+  }
+  
+  // 3. Test upload API
+  console.log('\n3️⃣ Testing Upload API...');
+  console.log('   (Skipping - requires file selection)');
+  
+  // 4. Check Supabase connection
+  console.log('\n4️⃣ Checking Submissions API...');
+  try {
+    const response = await fetch('/api/submissions');
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ Submissions API working!');
+      console.log('   Total submissions:', data.submissions?.length || 0);
+    } else {
+      console.error('❌ Submissions API failed:', response.status);
+    }
+  } catch (error) {
+    console.error('❌ Error fetching submissions:', error);
+  }
+  
+  // 5. Check environment
+  console.log('\n5️⃣ Environment Check...');
+  const hasSupabase = !!window.location.origin;
+  console.log(hasSupabase ? '✅ Running on localhost' : '❌ Environment issue');
+  
+  // Summary
+  console.log('\n' + '='.repeat(50));
+  console.log('📊 DIAGNOSTIC SUMMARY');
+  console.log('='.repeat(50));
+  console.log('Clerk User ID:', clerkUser.id);
+  console.log('Email:', clerkUser.primaryEmailAddress?.emailAddress);
+  console.log('\n⚠️ MOST COMMON ISSUE:');
+  console.log('   User not in database → Run sql/quick-fix-add-user.sql');
+  console.log('\n📝 Copy your User ID above and use it in the SQL file!');
+  console.log('='.repeat(50));
+})();
+</script>
