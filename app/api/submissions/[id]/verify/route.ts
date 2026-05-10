@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseServerClient } from "@/lib/supabase";
+<<<<<<< HEAD
 import { notifyUploadApproved, notifyUploadRejected } from "@/lib/notifications";
 import { TABLES } from "@/lib/db-tables";
+=======
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -27,7 +30,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     // Check if user is admin
     const { data: user, error: userError } = await supabase
+<<<<<<< HEAD
       .from(TABLES.USERS)
+=======
+      .from('User')
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       .select('id, role, name')
       .eq('id', userId)
       .single();
@@ -65,8 +72,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     // Get current submission to find the user
     const { data: currentSubmission, error: fetchError } = await supabase
+<<<<<<< HEAD
       .from(TABLES.SUBMISSIONS)
       .select('userId, wasteType, pointsAwarded, createdAt, location')
+=======
+      .from('Submission')
+      .select('userId, wasteType, pointsAwarded')
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       .eq('id', params.id)
       .single();
 
@@ -80,8 +92,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     console.log('📦 Current submission user:', currentSubmission.userId);
 
+<<<<<<< HEAD
     const { data: submission, error: updateError } = await supabase
       .from(TABLES.SUBMISSIONS)
+=======
+    // Update submission status
+    const { data: submission, error: updateError } = await supabase
+      .from('Submission')
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       .update({
         status,
         pointsAwarded: status === 'VERIFIED' ? points : 0,
@@ -107,8 +125,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     if (status === 'VERIFIED' && points > 0) {
       console.log('💰 Awarding', points, 'points to user:', currentSubmission.userId);
 
+<<<<<<< HEAD
       const { data: userData, error: userFetchError } = await supabase
         .from(TABLES.USERS)
+=======
+      // Get current user points
+      const { data: userData, error: userFetchError } = await supabase
+        .from('User')
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
         .select('points, name, email')
         .eq('id', currentSubmission.userId)
         .single();
@@ -121,7 +145,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         // Update user points
         const newPoints = (userData.points || 0) + points;
         const { data: updatedUser, error: pointsUpdateError } = await supabase
+<<<<<<< HEAD
           .from(TABLES.USERS)
+=======
+          .from('User')
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
           .update({ points: newPoints })
           .eq('id', currentSubmission.userId)
           .select()
@@ -133,8 +161,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
           console.log('✅ User points updated:', updatedUser.name, 'New points:', updatedUser.points);
         }
 
+<<<<<<< HEAD
         const { error: historyError } = await supabase
           .from(TABLES.POINTS_HISTORY)
+=======
+        // Create points history record
+        const { error: historyError } = await supabase
+          .from('PointsHistory')
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
           .insert({
             userId: currentSubmission.userId,
             submissionId: submission.id,
@@ -148,6 +182,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         } else {
           console.log('✅ Points history created');
         }
+<<<<<<< HEAD
 
         // 🔔 Send notification + email for approval
         try {
@@ -194,6 +229,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         } catch (notifError) {
           console.error('⚠️ Notification send failed (non-blocking):', notifError);
         }
+=======
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       }
     }
 

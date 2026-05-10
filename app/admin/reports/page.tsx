@@ -49,12 +49,51 @@ export default function ReportsPage() {
       let rStats = data.regionalStats || [];
       let pData = data.progressData || { weekly: [], monthly: [], yearly: [] };
 
+<<<<<<< HEAD
       setRegionalStats(rStats);
       setProgressData({
         weekly: pData.weekly || [],
         monthly: pData.monthly || [],
         yearly: pData.yearly || [],
       });
+=======
+      // Showcase data if empty
+      if (rStats.length === 0) {
+        rStats = [
+          { region: "Hyderabad", submissions: 1247, points: 48920, users: 543, color: "from-blue-500 to-blue-600" },
+          { region: "Warangal", submissions: 892, points: 34560, users: 387, color: "from-green-500 to-green-600" },
+          { region: "Nizamabad", submissions: 645, points: 25880, users: 241, color: "from-purple-500 to-purple-600" },
+          { region: "Others", submissions: 423, points: 16740, users: 163, color: "from-orange-500 to-orange-600" },
+        ];
+      }
+
+      if (pData.weekly.length === 0) {
+        pData = {
+          weekly: [
+            { period: 'Week 1', submissions: 45, verified: 38, rejected: 7, points: 950 },
+            { period: 'Week 2', submissions: 52, verified: 44, rejected: 8, points: 1100 },
+            { period: 'Week 3', submissions: 48, verified: 41, rejected: 7, points: 1025 },
+            { period: 'Week 4', submissions: 58, verified: 49, rejected: 9, points: 1225 }
+          ],
+          monthly: [
+            { period: 'Jan', submissions: 203, verified: 172, rejected: 31, points: 4300 },
+            { period: 'Feb', submissions: 189, verified: 161, rejected: 28, points: 4025 },
+            { period: 'Mar', submissions: 234, verified: 198, rejected: 36, points: 4950 },
+            { period: 'Apr', submissions: 267, verified: 225, rejected: 42, points: 5625 },
+            { period: 'May', submissions: 245, verified: 208, rejected: 37, points: 5200 },
+            { period: 'Jun', submissions: 289, verified: 244, rejected: 45, points: 6100 }
+          ],
+          yearly: [
+            { period: '2022', submissions: 1850, verified: 1572, rejected: 278, points: 39300 },
+            { period: '2023', submissions: 2340, verified: 1989, rejected: 351, points: 49725 },
+            { period: '2024', submissions: 2890, verified: 2456, rejected: 434, points: 61400 }
+          ]
+        };
+      }
+
+      setRegionalStats(rStats);
+      setProgressData(pData);
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
     } catch (error) {
       console.error(error);
       toast({
@@ -102,11 +141,15 @@ export default function ReportsPage() {
         <CardContent className="pt-6">
           <div className="h-[300px] relative w-full flex flex-col">
             <div className="flex-1 flex items-end gap-4 pb-4">
+<<<<<<< HEAD
               {progressData[timeRange]?.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center text-gray-400 font-medium pb-8">
                   No submission data available for this range.
                 </div>
               ) : progressData[timeRange]?.map((item, idx) => {
+=======
+              {progressData[timeRange].map((item, idx) => {
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
                 const maxValue = Math.max(...progressData[timeRange].map(d => d.submissions));
                 const subHeight = (item.submissions / maxValue) * 100;
                 const verHeight = (item.verified / maxValue) * 100;
@@ -145,11 +188,15 @@ export default function ReportsPage() {
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Regional Performance</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<<<<<<< HEAD
           {regionalStats.length === 0 ? (
             <div className="col-span-full py-12 text-center text-gray-500 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
               No regional performance data available.
             </div>
           ) : regionalStats.map((region) => {
+=======
+          {regionalStats.map((region) => {
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
             // For calculating average points safely without dividing by zero
             const avgPoints = region.users > 0 ? Math.round(region.points / region.users) : 0;
             return (

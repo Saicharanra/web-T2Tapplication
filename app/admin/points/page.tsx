@@ -45,12 +45,77 @@ export default function PointsHistoryPage() {
       let pStats = data.stats;
       let pTrans = data.transactions;
 
+<<<<<<< HEAD
       setStats(pStats || {
         totalDistributed: 0,
         todayDistribution: 0,
         topEarner: "None",
         averagePerSubmission: 0
       });
+=======
+      if (!pStats || pStats.totalDistributed === 0) {
+        pStats = {
+          totalDistributed: 126100,
+          todayDistribution: 2450,
+          topEarner: "Priya Sharma",
+          averagePerSubmission: 42.5
+        };
+        pTrans = [
+          {
+            id: "1",
+            user: "Amit Patel",
+            role: "USER",
+            email: "amit@example.com",
+            action: "points_awarded",
+            amount: 100,
+            wasteType: "Electronic Waste",
+            date: "2024-01-20 14:32",
+          },
+          {
+            id: "2",
+            user: "Rahul Kumar",
+            role: "USER",
+            email: "rahul@example.com",
+            action: "points_awarded",
+            amount: 50,
+            wasteType: "Plastic Bottles",
+            date: "2024-01-20 13:18",
+          },
+          {
+            id: "3",
+            user: "Vijay Singh",
+            role: "USER",
+            email: "vijay@example.com",
+            action: "points_awarded",
+            amount: 45,
+            wasteType: "Metal Cans",
+            date: "2024-01-20 11:42",
+          },
+          {
+            id: "4",
+            user: "Anita Rao",
+            role: "USER",
+            email: "anita@example.com",
+            action: "points_awarded",
+            amount: 25,
+            wasteType: "Plastic Bags",
+            date: "2024-01-20 10:15",
+          },
+          {
+            id: "5",
+            user: "Priya Sharma",
+            role: "USER",
+            email: "priya@example.com",
+            action: "points_awarded",
+            amount: 30,
+            wasteType: "Paper Waste",
+            date: "2024-01-19 16:48",
+          }
+        ];
+      }
+
+      setStats(pStats);
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       setTransactions(pTrans || []);
 
     } catch (error) {

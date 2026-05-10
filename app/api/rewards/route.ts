@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+<<<<<<< HEAD
 import { notifyRewardRedeemed } from "@/lib/notifications";
 import { TABLES } from "@/lib/db-tables";
+=======
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,7 +25,11 @@ export async function GET(req: NextRequest) {
 
     // Fetch only active rewards
     const { data: rewards, error } = await supabase
+<<<<<<< HEAD
       .from(TABLES.REWARD)
+=======
+      .from("Reward")
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       .select("reward_id, title, description, points_required, image_url, status, category, stock")
       .eq("status", "Active")
       .order("points_required", { ascending: true });
@@ -65,7 +72,11 @@ export async function POST(req: NextRequest) {
 
     // Fetch the reward
     const { data: reward, error: rewardError } = await supabase
+<<<<<<< HEAD
       .from(TABLES.REWARD)
+=======
+      .from("Reward")
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       .select("*")
       .eq("reward_id", reward_id)
       .eq("status", "Active")
@@ -82,7 +93,11 @@ export async function POST(req: NextRequest) {
 
     // Fetch user's current points
     const { data: user, error: userError } = await supabase
+<<<<<<< HEAD
       .from(TABLES.USERS)
+=======
+      .from("User")
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       .select("points")
       .eq("id", userId)
       .single();
@@ -101,7 +116,11 @@ export async function POST(req: NextRequest) {
 
     // Deduct points from user
     const { error: deductError } = await supabase
+<<<<<<< HEAD
       .from(TABLES.USERS)
+=======
+      .from("User")
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       .update({ points: user.points - reward.points_required })
       .eq("id", userId);
 
@@ -112,7 +131,11 @@ export async function POST(req: NextRequest) {
 
     // Record redemption
     const { data: redemptionData, error: redemptionError } = await supabase
+<<<<<<< HEAD
       .from(TABLES.REWARD_REDEMPTION)
+=======
+      .from("RewardRedemption")
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       .insert({
         reward_id: reward.reward_id,
         user_id: userId,
@@ -124,7 +147,11 @@ export async function POST(req: NextRequest) {
       console.error("Error recording redemption:", redemptionError);
       // Attempt to refund points
       await supabase
+<<<<<<< HEAD
         .from(TABLES.USERS)
+=======
+        .from("User")
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
         .update({ points: user.points })
         .eq("id", userId);
       return NextResponse.json({ error: "Failed to record redemption" }, { status: 500 });
@@ -133,11 +160,16 @@ export async function POST(req: NextRequest) {
     // Decrease stock (if not unlimited)
     if (reward.stock !== 999) {
       await supabase
+<<<<<<< HEAD
         .from(TABLES.REWARD)
+=======
+        .from("Reward")
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
         .update({ stock: reward.stock - 1 })
         .eq("reward_id", reward.reward_id);
     }
 
+<<<<<<< HEAD
     // Record redemption in PointsHistory for wallet transaction history
     const { error: historyError } = await supabase
       .from(TABLES.POINTS_HISTORY)
@@ -176,6 +208,8 @@ export async function POST(req: NextRequest) {
       console.error('⚠️ Reward notification failed (non-blocking):', notifError);
     }
 
+=======
+>>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
     return NextResponse.json({
       message: "Reward redeemed successfully!",
       newPoints: user.points - reward.points_required,
