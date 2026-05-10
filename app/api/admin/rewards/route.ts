@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,7 +11,7 @@ export const runtime = "nodejs";
  */
 async function verifyAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string) {
   const { data: adminUser, error } = await supabase
-    .from("User")
+    .from(TABLES.USERS)
     .select("role")
     .eq("id", userId)
     .single();
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch all rewards
     let query = supabase
-      .from("Reward")
+      .from(TABLES.REWARD)
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch redemption counts per reward
     const { data: redemptions, error: redemptionsError } = await supabase
-      .from("RewardRedemption")
+      .from(TABLES.REWARD_REDEMPTION)
       .select("reward_id");
 
     if (redemptionsError) {
@@ -128,7 +129,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
-    const body = await req.json();
+    // Safe JSON parsing
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid or empty JSON body" }, { status: 400 });
+    }
+
     const { title, description, points_required, image_url, status, category, stock } = body;
 
     // Validation
@@ -149,7 +157,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: reward, error } = await supabase
-      .from("Reward")
+      .from(TABLES.REWARD)
       .insert({
         title: title.trim(),
         description: description?.trim() || "",

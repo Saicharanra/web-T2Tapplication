@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,7 +19,7 @@ export async function GET() {
 
     // Fetch top users ordered by points
     const { data: leaderboard, error } = await supabase
-      .from("User")
+      .from(TABLES.USERS)
       .select("id, name, email, points, level, updatedAt")
       .eq("status", "ACTIVE")
       .order("points", { ascending: false })
@@ -36,7 +37,7 @@ export async function GET() {
     const userIds = leaderboard?.map((u) => u.id) || [];
     
     const { data: submissionCounts, error: submissionError } = await supabase
-      .from("Submission")
+      .from(TABLES.SUBMISSIONS)
       .select("userId")
       .in("userId", userIds);
 

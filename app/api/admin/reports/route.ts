@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,7 +21,7 @@ export async function GET(_req: NextRequest) {
 
         // Verify Admin Role
         const { data: user, error: userError } = await supabase
-            .from("User")
+            .from(TABLES.USERS)
             .select("role")
             .eq("id", userId)
             .single();
@@ -31,12 +32,12 @@ export async function GET(_req: NextRequest) {
 
         // 1. Regional Stats
         const { data: allSubmissions } = await supabase
-            .from("Submission")
+            .from(TABLES.SUBMISSIONS)
             .select(`
         id, location, status, pointsAwarded, createdAt, userId
       `);
 
-        const { data: allUsers } = await supabase.from("User").select("id, location");
+        const { data: allUsers } = await supabase.from(TABLES.USERS).select("id, location");
 
         // Initialize region map
         type RegionStats = { submissions: number, points: number, users: Set<string> };

@@ -17,10 +17,7 @@ const navigationBase = [
   { name: "Submissions", href: "/admin/submissions", icon: Images, badge: null, section: "MAIN", description: "Review waste reports" },
   { name: "Rewards", href: "/admin/rewards", icon: Gift, section: "MAIN", description: "Manage reward catalog" },
   { name: "Users", href: "/admin/users", icon: Users, section: "MAIN", description: "User management" },
-<<<<<<< HEAD
   { name: "Notifications", href: "/admin/notifications", icon: Bell, section: "MAIN", description: "Notification center" },
-=======
->>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
   { name: "Reports", href: "/admin/reports", icon: TrendingUp, section: "ANALYTICS", description: "Progress analytics" },
   { name: "Points History", href: "/admin/points", icon: Coins, section: "ANALYTICS", description: "Point transactions" },
   { name: "Settings", href: "/admin/settings", icon: Settings, section: "SYSTEM", description: "System configuration" },

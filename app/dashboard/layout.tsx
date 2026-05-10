@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { Space_Grotesk } from "next/font/google";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
@@ -31,6 +33,10 @@ const navigation = [
   { name: "Profile", href: "/dashboard/profile", icon: User },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+});
 
 function DashboardHeader() {
   const { points, pointsLoading, refreshPoints } = usePoints();
@@ -53,13 +59,25 @@ function DashboardHeader() {
         }`}>
         {/* Logo and App Name */}
         <Link href="/" className="flex items-center gap-2 shrink-0 z-10 transition-transform hover:scale-105">
-          <div className="bg-gradient-to-br from-green-500 to-blue-500 p-1.5 rounded-xl shadow-lg xs:p-2">
-            <Leaf className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-          </div>
+          <Image src="/dashboard/icon.png" alt="icon" width={45} height={45 }  />
           <div className="flex items-center pointer-events-auto">
-            <h1 className="font-bold text-base sm:text-lg lg:text-xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400 transition-all duration-300">
-              Trash2Treasure
-            </h1>
+            <h1
+  className={`${spaceGrotesk.className} 
+  font-extrabold 
+  text-lg sm:text-2xl lg:text-3xl 
+  tracking-[-0.05em] 
+  bg-clip-text text-transparent 
+  bg-gradient-to-r 
+  from-emerald-400 
+  via-green-500 
+  to-cyan-500 
+  drop-shadow-[0_0_12px_rgba(34,197,94,0.35)]
+  transition-all duration-300 
+  hover:scale-105`}
+>
+  Trash2Treasure
+</h1>
+
           </div>
         </Link>
 

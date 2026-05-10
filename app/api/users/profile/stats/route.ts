@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -24,14 +25,14 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
 
     // Get user's total points
     const { data: user } = await supabase
-      .from('User')
+      .from(TABLES.USERS)
       .select('points')
       .eq('id', userId)
       .single();
 
     // Get total submissions count by status
     const { data: submissions } = await supabase
-      .from('Submission')
+      .from(TABLES.SUBMISSIONS)
       .select('status, wasteType, createdAt')
       .eq('userId', userId);
 
@@ -68,7 +69,7 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
 
     // Get user's rank (simplified - count users with more points)
     const { data: allUsers } = await supabase
-      .from('User')
+      .from(TABLES.USERS)
       .select('points')
       .order('points', { ascending: false });
 

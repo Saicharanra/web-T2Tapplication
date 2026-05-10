@@ -76,7 +76,14 @@ export async function PUT(req: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const body = await req.json();
+    
+    // Safe JSON parsing
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid or empty JSON body" }, { status: 400 });
+    }
 
     // Whitelist allowed fields
     const allowedFields = [

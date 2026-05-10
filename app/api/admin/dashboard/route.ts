@@ -1,9 +1,8 @@
 
 
 
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,7 +22,7 @@ export async function GET(_req: NextRequest) {
 
     // Verify Admin Role
     const { data: user, error: userError } = await supabase
-      .from("User")
+      .from(TABLES.USERS)
       .select("role")
       .eq("id", userId)
       .single();
@@ -33,36 +32,36 @@ export async function GET(_req: NextRequest) {
     }
 
     // 1. Users Stats
-    const { count: totalUsers } = await supabase.from("User").select("*", { count: "exact", head: true });
+    const { count: totalUsers } = await supabase.from(TABLES.USERS).select("*", { count: "exact", head: true });
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const { count: newThisWeek } = await supabase.from("User")
+    const { count: newThisWeek } = await supabase.from(TABLES.USERS)
       .select("*", { count: "exact", head: true })
       .gte("joinedAt", sevenDaysAgo.toISOString());
 
     // 2. Submission Stats
-    const { count: pendingSubmissions } = await supabase.from("Submission").select("*", { count: "exact", head: true }).eq('status', 'PENDING');
+    const { count: pendingSubmissions } = await supabase.from(TABLES.SUBMISSIONS).select("*", { count: "exact", head: true }).eq('status', 'PENDING');
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const { count: verifiedToday } = await supabase.from("Submission")
+    const { count: verifiedToday } = await supabase.from(TABLES.SUBMISSIONS)
       .select("*", { count: "exact", head: true })
       .eq('status', 'VERIFIED')
       .gte("verifiedAt", today.toISOString());
 
-    const { count: rejectedToday } = await supabase.from("Submission")
+    const { count: rejectedToday } = await supabase.from(TABLES.SUBMISSIONS)
       .select("*", { count: "exact", head: true })
       .eq('status', 'REJECTED')
       .gte("createdAt", today.toISOString());
 
     // 3. Points Awarded
-    const { data: submissions } = await supabase.from("Submission").select("pointsAwarded").eq('status', 'VERIFIED');
+    const { data: submissions } = await supabase.from(TABLES.SUBMISSIONS).select("pointsAwarded").eq('status', 'VERIFIED');
     const totalPoints = submissions?.reduce((acc, curr) => acc + (curr.pointsAwarded || 0), 0) || 0;
 
     // 4. Recent Submissions Feed
     const { data: recentSubmissions } = await supabase
-      .from("Submission")
+      .from(TABLES.SUBMISSIONS)
       .select(`
          id,
          wasteType,
@@ -72,7 +71,7 @@ export async function GET(_req: NextRequest) {
          status,
          pointsAwarded,
          userId,
-         user:User!userId(name, email)
+         user:${TABLES.USERS}!userId(name, email)
        `)
       .order("createdAt", { ascending: false })
       .limit(6);

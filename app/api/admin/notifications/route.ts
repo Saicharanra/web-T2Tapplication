@@ -34,7 +34,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
+    // Safe JSON parsing
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid or empty JSON body" }, { status: 400 });
+    }
+
     const { type, title, message, ctaText, ctaUrl, targetUserId } = body;
 
     if (!title || !message) {

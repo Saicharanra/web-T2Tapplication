@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     // Check if user is admin
     const { data: adminUser, error: adminError } = await supabase
-      .from("User")
+      .from(TABLES.USERS)
       .select("role")
       .eq("id", userId)
       .single();
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch all users with submission counts
     const { data: users, error: usersError } = await supabase
-      .from("User")
+      .from(TABLES.USERS)
       .select("*")
       .order("joinedAt", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch submission counts for each user
     const { data: submissions, error: submissionsError } = await supabase
-      .from("Submission")
+      .from(TABLES.SUBMISSIONS)
       .select("userId, status");
 
     console.log('Submissions query result:', { submissionsCount: submissions?.length || 0, submissionsError });

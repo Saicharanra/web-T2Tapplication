@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     // Check if user is admin
     const { data: user, error: userError } = await supabase
-      .from("User")
+      .from(TABLES.USERS)
       .select("role, name, email")
       .eq("id", userId)
       .single();
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
     // For count endpoint
     if (searchParams.has("count")) {
       let countQuery = supabase
-        .from("Submission")
+        .from(TABLES.SUBMISSIONS)
         .select("*", { count: "exact", head: true });
 
       if (status) countQuery = countQuery.eq("status", status);
@@ -77,11 +78,11 @@ export async function GET(req: NextRequest) {
 
     // Build query for data
     let query = supabase
-      .from("Submission")
+      .from(TABLES.SUBMISSIONS)
       .select(
         `
         *,
-        user:User!userId(
+        user:${TABLES.USERS}!userId(
           id,
           name,
           email,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { createSupabaseServerClient, getSupabaseAdmin } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ export async function DELETE(
 
     // Check if user is admin
     const { data: user, error: userError } = await supabase
-      .from("User")
+      .from(TABLES.USERS)
       .select("role")
       .eq("id", userId)
       .single();
@@ -45,7 +45,7 @@ export async function DELETE(
 
     // Get the submission first to find the image path
     const { data: submission, error: fetchError } = await supabase
-      .from("Submission")
+      .from(TABLES.SUBMISSIONS)
       .select("id, imagePath, imageUrl")
       .eq("id", id)
       .single();
@@ -78,7 +78,7 @@ export async function DELETE(
 
     // Delete the submission from the database
     const { error: deleteError } = await supabase
-      .from("Submission")
+      .from(TABLES.SUBMISSIONS)
       .delete()
       .eq("id", id);
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,7 +11,7 @@ export const runtime = "nodejs";
  */
 async function verifyAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string) {
   const { data: adminUser, error } = await supabase
-    .from("User")
+    .from(TABLES.USERS)
     .select("role")
     .eq("id", userId)
     .single();
@@ -45,7 +46,14 @@ export async function PUT(
       return NextResponse.json({ error: "Invalid reward ID" }, { status: 400 });
     }
 
-    const body = await req.json();
+    // Safe JSON parsing
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid or empty JSON body" }, { status: 400 });
+    }
+
     const { title, description, points_required, image_url, status, category, stock } = body;
 
     // Validation
@@ -76,7 +84,7 @@ export async function PUT(
     if (stock !== undefined) updateData.stock = stock;
 
     const { data: reward, error } = await supabase
-      .from("Reward")
+      .from(TABLES.REWARD)
       .update(updateData)
       .eq("reward_id", rewardId)
       .select()
@@ -131,7 +139,7 @@ export async function DELETE(
     }
 
     const { error } = await supabase
-      .from("Reward")
+      .from(TABLES.REWARD)
       .delete()
       .eq("reward_id", rewardId);
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
 
     // Fetch user data from database
     const { data: user, error } = await supabase
-      .from('User')
+      .from(TABLES.USERS)
       .select('*')
       .eq('id', userId)
       .single();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
 
     // Get user data
     const { data: user, error: userError } = await supabase
-      .from('User')
+      .from(TABLES.USERS)
       .select('points, level')
       .eq('id', userId)
       .single();
@@ -38,7 +39,7 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
 
     // Get total submissions count
     const { count: totalSubmissions, error: countError } = await supabase
-      .from('Submission')
+      .from(TABLES.SUBMISSIONS)
       .select('*', { count: 'exact', head: true })
       .eq('userId', userId);
 
@@ -51,7 +52,7 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     const { count: recentCount } = await supabase
-      .from('Submission')
+      .from(TABLES.SUBMISSIONS)
       .select('*', { count: 'exact', head: true })
       .eq('userId', userId)
       .gte('createdAt', sevenDaysAgo.toISOString());

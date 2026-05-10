@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseServerClient } from "@/lib/supabase";
-<<<<<<< HEAD
 import { TABLES } from "@/lib/db-tables";
-=======
->>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -30,17 +27,10 @@ export async function GET(req: NextRequest) {
 
     // Build query
     let query = supabase
-<<<<<<< HEAD
       .from(TABLES.SUBMISSIONS)
       .select(`
         *,
         user:${TABLES.USERS}!userId(
-=======
-      .from('Submission')
-      .select(`
-        *,
-        user:User!userId(
->>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
           name,
           email,
           level
@@ -90,7 +80,14 @@ export async function POST(req: NextRequest) {
     // Create Supabase server client
     const supabase = await createSupabaseServerClient();
 
-    const body = await req.json();
+    // Safe JSON parsing
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid or empty JSON body" }, { status: 400 });
+    }
+
     const {
       wasteType,
       imageUrl,
@@ -127,11 +124,7 @@ export async function POST(req: NextRequest) {
     // Check if user exists in database
     console.log('👤 Checking if user exists...');
     const { data: userCheck, error: userError } = await supabase
-<<<<<<< HEAD
       .from(TABLES.USERS)
-=======
-      .from('User')
->>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       .select('id, name, email')
       .eq('id', userId)
       .single();
@@ -153,11 +146,7 @@ export async function POST(req: NextRequest) {
     // Insert submission into database
     console.log('💾 Inserting submission into database...');
     const { data: submission, error } = await supabase
-<<<<<<< HEAD
       .from(TABLES.SUBMISSIONS)
-=======
-      .from('Submission')
->>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
       .insert({
         id: submissionId || crypto.randomUUID(),
         userId,
@@ -173,11 +162,7 @@ export async function POST(req: NextRequest) {
       .select(
         `
         *,
-<<<<<<< HEAD
         user:${TABLES.USERS}!userId(
-=======
-        user:User!userId(
->>>>>>> 351c1400f92eab3797030734c46d278ef1941b46
           name,
           email
         )

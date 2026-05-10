@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,7 +21,7 @@ export async function GET(_req: NextRequest) {
 
         // Verify Admin Role
         const { data: user, error: userError } = await supabase
-            .from("User")
+            .from(TABLES.USERS)
             .select("role")
             .eq("id", userId)
             .single();
@@ -31,10 +32,10 @@ export async function GET(_req: NextRequest) {
 
         // 1. Fetch Verified Submissions for Transaction History & Stats
         const { data: verifiedSubmissions } = await supabase
-            .from("Submission")
+            .from(TABLES.SUBMISSIONS)
             .select(`
          id, wasteType, location, pointsAwarded, createdAt,
-         user:User!userId(name, email, role)
+         user:${TABLES.USERS}!userId(name, email, role)
        `)
             .eq('status', 'VERIFIED')
             .order("updatedAt", { ascending: false });

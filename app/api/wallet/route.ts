@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createSupabaseServerClient } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -26,7 +27,7 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
 
     // Get user's current points
     const { data: user, error: userError } = await supabase
-      .from('User')
+      .from(TABLES.USERS)
       .select('points, name, email')
       .eq('id', userId)
       .single();
@@ -43,10 +44,10 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
 
     // Get all points history with submission details
     const { data: history, error: historyError } = await supabase
-      .from('PointsHistory')
+      .from(TABLES.POINTS_HISTORY)
       .select(`
         *,
-        submission:Submission(wasteType)
+        submission:${TABLES.SUBMISSIONS}(wasteType)
       `)
       .eq('userId', userId)
       .order('createdAt', { ascending: false });

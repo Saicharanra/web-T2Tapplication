@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     // Verify admin
     const { data: adminUser, error: adminError } = await supabase
-      .from("User")
+      .from(TABLES.USERS)
       .select("role")
       .eq("id", userId)
       .single();
@@ -33,18 +34,18 @@ export async function GET(req: NextRequest) {
 
     // Fetch redemptions with reward and user info via joins
     const { data: redemptions, error } = await supabase
-      .from("RewardRedemption")
+      .from(TABLES.REWARD_REDEMPTION)
       .select(`
         redemption_id,
         redeemed_at,
         reward_id,
         user_id,
-        Reward (
+        Reward:${TABLES.REWARD} (
           title,
           points_required,
           image_url
         ),
-        User:user_id (
+        User:${TABLES.USERS}!user_id (
           name,
           email,
           imageUrl
@@ -58,7 +59,7 @@ export async function GET(req: NextRequest) {
 
       // Fallback: fetch without joins if the join syntax fails
       const { data: fallbackRedemptions, error: fallbackError } = await supabase
-        .from("RewardRedemption")
+        .from(TABLES.REWARD_REDEMPTION)
         .select("*")
         .order("redeemed_at", { ascending: false })
         .limit(limit);
@@ -76,10 +77,10 @@ export async function GET(req: NextRequest) {
 
       const [rewardsResult, usersResult] = await Promise.all([
         rewardIds.length > 0
-          ? supabase.from("Reward").select("reward_id, title, points_required, image_url").in("reward_id", rewardIds)
+          ? supabase.from(TABLES.REWARD).select("reward_id, title, points_required, image_url").in("reward_id", rewardIds)
           : { data: [], error: null },
         userIds.length > 0
-          ? supabase.from("User").select("id, name, email, \"imageUrl\"").in("id", userIds)
+          ? supabase.from(TABLES.USERS).select("id, name, email, \"imageUrl\"").in("id", userIds)
           : { data: [], error: null },
       ]);
 

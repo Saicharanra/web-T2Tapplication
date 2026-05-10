@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { TABLES } from "@/lib/db-tables";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,11 +17,11 @@ export async function GET(req: NextRequest) {
 
     // Fetch redemptions with the associated reward
     const { data: redemptions, error } = await supabase
-      .from("RewardRedemption")
+      .from(TABLES.REWARD_REDEMPTION)
       .select(`
         redemption_id,
         redeemed_at,
-        Reward (
+        Reward:${TABLES.REWARD}(
           title
         )
       `)
