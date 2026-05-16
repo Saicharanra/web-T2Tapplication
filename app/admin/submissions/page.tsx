@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, XCircle, UserCircle, MapPin, Calendar, Filter, Recycle, Eye, Download, Coins, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+
+const DEFAULT_WASTE_POINTS: Record<string, number> = {
+  "Plastic Bottles": 15,
+  "Paper Waste": 10,
+  "Metal Cans": 25,
+  "Glass Bottles": 20,
+  "Cardboard": 12,
+  "E-Waste": 50,
+  "Organic Waste": 18,
+  "Mixed Recyclables": 8
+};
 
 interface Submission {
   id: string;
@@ -33,14 +45,28 @@ export default function SubmissionsPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
-  const [pointsInput, setPointsInput] = useState<Record<string, number>>({});
+  const [pointsConfig, setPointsConfig] = useState<Record<string, number>>(DEFAULT_WASTE_POINTS);
   const { toast } = useToast();
+
+  const fetchPointsConfig = useCallback(async () => {
+    try {
+      const response = await fetchWithAuth('/api/admin/settings');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.pointsConfig) {
+          setPointsConfig(data.pointsConfig);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch points config:", error);
+    }
+  }, []);
 
   const fetchSubmissions = useCallback(async () => {
     try {
       console.log('🚀 Fetching admin submissions...');
       setLoading(true);
-      const response = await fetch('/api/submissions/all');
+      const response = await fetchWithAuth('/api/submissions/all');
 
       console.log('Response status:', response.status);
       console.log('Response OK:', response.ok);
@@ -113,7 +139,8 @@ export default function SubmissionsPage() {
   // Fetch submissions on mount
   useEffect(() => {
     fetchSubmissions();
-  }, [fetchSubmissions]);
+    fetchPointsConfig();
+  }, [fetchSubmissions, fetchPointsConfig]);
 
   const filteredSubmissions = submissions.filter((sub) => {
     const matchesFilter = filter === "ALL" || sub.status === filter;
@@ -128,15 +155,25 @@ export default function SubmissionsPage() {
 
   const handleVerify = async (id: string, userName: string) => {
     try {
-      const customPoints = pointsInput[id] || 50;
-      const response = await fetch(`/api/submissions/${id}/verify`, {
+      const response = await fetchWithAuth(`/api/submissions/${id}/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'VERIFIED', points: customPoints }),
+        body: JSON.stringify({ status: 'VERIFIED' }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to verify submission');
+        let errorMessage = `Error (${response.status})`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.details || errorMessage;
+        } catch (e) {
+          // If not JSON, try to get text
+          try {
+            const text = await response.text();
+            if (text && text.length < 100) errorMessage = text;
+          } catch (textErr) {}
+        }
+        throw new Error(errorMessage);
       }
 
       toast({
@@ -158,7 +195,7 @@ export default function SubmissionsPage() {
 
   const handleReject = async (id: string, userName: string) => {
     try {
-      const response = await fetch(`/api/submissions/${id}/verify`, {
+      const response = await fetchWithAuth(`/api/submissions/${id}/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -205,7 +242,7 @@ export default function SubmissionsPage() {
     }
 
     try {
-      const response = await fetch(`/api/submissions/${id}`, {
+      const response = await fetchWithAuth(`/api/submissions/${id}`, {
         method: 'DELETE',
       });
 
@@ -275,6 +312,7 @@ export default function SubmissionsPage() {
                 <option value="warangal">Warangal</option>
                 <option value="nizamabad">Nizamabad</option>
                 <option value="karimnagar">Karimnagar</option>
+                <option value="kompalle">Kompalle</option>
                 <option value="khammam">Khammam</option>
               </select>
             </div>
@@ -397,7 +435,11 @@ export default function SubmissionsPage() {
                   </div>
                   <div className="flex justify-between items-center pb-1 border-b border-gray-200/40">
                     <span className="text-sm text-gray-500 font-medium">Points:</span>
-                    <span className="text-sm font-bold text-gray-900">{submission.pointsAwarded || 0}</span>
+                    <span className="text-sm font-bold text-gray-900">
+                      {isPending 
+                        ? (pointsConfig[submission.wasteType] || 0) 
+                        : (submission.pointsAwarded || 0)}
+                    </span>
                   </div>
                   <div className="flex justify-between items-start pb-2">
                     <span className="text-sm text-gray-500 font-medium min-w-max mr-4">Description:</span>
@@ -409,15 +451,10 @@ export default function SubmissionsPage() {
                   {/* Action Section */}
                   {isPending ? (
                     <div className="space-y-3 pt-2 mt-2">
-                      <Input
-                        type="number"
-                        placeholder="25"
-                        min={0}
-                        max={100}
-                        className="bg-white rounded-lg border-gray-300 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
-                        value={pointsInput[submission.id] !== undefined ? pointsInput[submission.id] : 25}
-                        onChange={(e) => setPointsInput({ ...pointsInput, [submission.id]: parseInt(e.target.value) || 0 })}
-                      />
+                      <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-xs text-emerald-700 flex items-center gap-2.5">
+                        <Coins className="h-4 w-4 text-emerald-500" />
+                        <span>System default points for <strong>{submission.wasteType}</strong> will be awarded.</span>
+                      </div>
                       <div className="flex gap-2 w-full">
                         <Button
                           className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm font-medium h-9 px-2"
@@ -434,17 +471,7 @@ export default function SubmissionsPage() {
                           <XCircle className="h-4 w-4 sm:mr-1.5 hidden sm:inline-block" />
                           Reject
                         </Button>
-                        <Button
-                          className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white shadow-sm font-medium h-9 px-2 flex-col leading-none"
-                          onClick={() => {
-                            toast({
-                              title: "✅ Points Assigned",
-                              description: `${pointsInput[submission.id] || 25} points structured for verification.`
-                            });
-                          }}
-                        >
-                          Assign<br /><span className="text-[10px]">Points</span>
-                        </Button>
+
                       </div>
                       <Button
                         variant="ghost"

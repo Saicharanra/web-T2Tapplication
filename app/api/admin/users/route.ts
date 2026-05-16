@@ -1,107 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/**
- * GET: Fetch all users (admin only)
- */
 export async function GET(req: NextRequest) {
   try {
-    console.log('🔍 Admin users API called');
-    
-    const { userId } = await auth();
-    console.log('👤 Requesting user ID:', userId);
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
 
     if (!userId) {
-      console.error('❌ No userId found');
-      return NextResponse.json({ error: "Unauthorized - No user ID" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    // Create Supabase admin client (bypasses RLS for admin operations)
-    const supabase = getSupabaseAdmin();
-    console.log('✅ Supabase admin client created');
 
     // Check if user is admin
-    const { data: adminUser, error: adminError } = await supabase
-      .from("User")
-      .select("role")
-      .eq("id", userId)
-      .single();
-
-    console.log('Admin user query result:', { adminUser, adminError });
-
-    if (adminError) {
-      console.error('❌ Admin check error:', adminError);
-      return NextResponse.json(
-        { error: "User not found", details: adminError.message },
-        { status: 404 }
-      );
+    const adminUserDoc = await adminDb.collection("users").doc(userId).get();
+    if (!adminUserDoc.exists || adminUserDoc.data()?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
-
-    if (!adminUser) {
-      console.error('❌ Admin user not found in database');
-      return NextResponse.json(
-        { error: "User not found in database" },
-        { status: 404 }
-      );
-    }
-
-    console.log('👤 User role:', adminUser.role);
-
-    if (adminUser.role !== "ADMIN") {
-      console.error('❌ User is not admin. Role:', adminUser.role);
-      return NextResponse.json(
-        { error: "Forbidden: Admin access required", currentRole: adminUser.role },
-        { status: 403 }
-      );
-    }
-
-    console.log('✅ Admin verified, fetching users...');
 
     // Parse query parameters
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "100");
+    const limitNum = parseInt(searchParams.get("limit") || "100");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    // Fetch all users with submission counts
-    const { data: users, error: usersError } = await supabase
-      .from("User")
-      .select("*")
-      .order("joinedAt", { ascending: false })
-      .range(offset, offset + limit - 1);
+    // Fetch all users
+    // Firestore pagination is different (using startAfter), for simple offset we fetch and slice
+    const usersSnapshot = await adminDb.collection("users")
+      .orderBy("joinedAt", "desc")
+      .get();
+    
+    const allUsers = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const users = allUsers.slice(offset, offset + limitNum);
 
-    console.log('Users query result:', { usersCount: users?.length || 0, usersError });
-
-    if (usersError) {
-      console.error("❌ Error fetching users:", usersError);
-      return NextResponse.json(
-        { error: "Failed to fetch users", details: usersError.message },
-        { status: 500 }
-      );
-    }
-
-    console.log('✅ Users fetched:', users?.length || 0);
-
-    // Fetch submission counts for each user
-    const { data: submissions, error: submissionsError } = await supabase
-      .from("Submission")
-      .select("userId, status");
-
-    console.log('Submissions query result:', { submissionsCount: submissions?.length || 0, submissionsError });
-
-    if (submissionsError) {
-      console.error('⚠️ Error fetching submissions:', submissionsError);
-    }
-
-    console.log('📊 Submissions fetched:', submissions?.length || 0);
+    // Fetch all submissions to calculate counts
+    const submissionsSnapshot = await adminDb.collection("submissions").get();
+    const submissions = submissionsSnapshot.docs.map(doc => doc.data());
 
     // Create submission count map
     const submissionMap = new Map<string, { total: number; verified: number; pending: number; rejected: number }>();
     
-    submissions?.forEach((sub) => {
+    submissions.forEach((sub) => {
       if (!submissionMap.has(sub.userId)) {
         submissionMap.set(sub.userId, { total: 0, verified: 0, pending: 0, rejected: 0 });
       }
@@ -113,7 +52,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Enhance users with submission counts
-    const enhancedUsers = users?.map((user) => {
+    const enhancedUsers = users.map((user: any) => {
       const submissionStats = submissionMap.get(user.id) || { total: 0, verified: 0, pending: 0, rejected: 0 };
       return {
         ...user,
@@ -121,33 +60,22 @@ export async function GET(req: NextRequest) {
         verifiedSubmissions: submissionStats.verified,
         pendingSubmissions: submissionStats.pending,
         rejectedSubmissions: submissionStats.rejected,
-        createdAt: user.joinedAt,
+        createdAt: user.joinedAt?.toDate?.()?.toISOString() || user.joinedAt,
       };
-    }) || [];
+    });
 
     // Calculate statistics
-    const totalUsers = enhancedUsers?.length || 0;
-    const activeUsers = enhancedUsers?.filter(u => u.status === 'ACTIVE').length || 0;
+    const totalUsers = allUsers.length;
+    const activeUsers = allUsers.filter((u: any) => u.status === 'ACTIVE').length;
     
-    // Users joined in last 7 days
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const newThisWeek = enhancedUsers?.filter(u => 
-      new Date(u.joinedAt) >= sevenDaysAgo
-    ).length || 0;
+    const newThisWeek = allUsers.filter((u: any) => {
+        const joinedAt = u.joinedAt?.toDate?.() || new Date(u.joinedAt);
+        return joinedAt >= sevenDaysAgo;
+    }).length;
 
-    // Top contributors (users with most verified submissions)
-    const topContributors = enhancedUsers?.filter(u => 
-      u.verifiedSubmissions >= 5
-    ).length || 0;
-
-    console.log('✅ Returning data:', {
-      usersCount: enhancedUsers?.length || 0,
-      totalUsers,
-      activeUsers,
-      newThisWeek,
-      topContributors
-    });
+    const topContributors = enhancedUsers.filter((u: any) => u.verifiedSubmissions >= 5).length;
 
     return NextResponse.json({
       users: enhancedUsers,
@@ -158,15 +86,13 @@ export async function GET(req: NextRequest) {
         topContributors,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("💥 Error in admin users route:", error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
-      { 
-        error: "Failed to fetch users",
-        message: error instanceof Error ? error.message : 'Unknown error',
-        details: error instanceof Error ? error.stack : undefined
-      },
+      { error: "Failed to fetch users", details: error.message },
       { status: 500 }
     );
   }

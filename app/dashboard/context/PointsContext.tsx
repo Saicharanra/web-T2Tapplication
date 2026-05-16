@@ -1,7 +1,8 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 interface PointsContextType {
   points: number;
@@ -15,7 +16,7 @@ const PointsContext = createContext<PointsContextType | undefined>(undefined);
 export function PointsProvider({ children }: { children: ReactNode }) {
   const [points, setPoints] = useState<number>(0);
   const [pointsLoading, setPointsLoading] = useState(true);
-  const { user } = useUser();
+  const { user } = useAuth();
 
   const refreshPoints = useCallback(async () => {
     if (!user) {
@@ -24,7 +25,7 @@ export function PointsProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const response = await fetch('/api/users/stats', {
+      const response = await fetchWithAuth('/api/users/stats', {
         cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',

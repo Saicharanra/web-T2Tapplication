@@ -1,10 +1,12 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { SignedIn, SignedOut, UserButton, useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/AuthProvider";
+import { LogoutButton } from "@/components/LogoutButton";
 import {
   Leaf,
   Users,
@@ -27,14 +29,15 @@ import {
 import Footer from "@/app/dashboard/footer/page";
 
 export default function Home() {
-  const { isSignedIn } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const isSignedIn = !!user;
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Fix: define fetchUserRole with useCallback to prevent useEffect issues
   const fetchUserRole = useCallback(async () => {
     try {
-      const res = await fetch("/api/users/profile");
+      const res = await fetchWithAuth('/api/users/profile');
       if (res.ok) {
         const data = await res.json();
         setUserRole(data.role ?? null);
@@ -179,54 +182,58 @@ export default function Home() {
             </p>
 
             <div className="flex flex-wrap gap-4">
-              <SignedOut>
-                <Link href="/sign-up">
-                  <Button
-                    size="lg"
-                    className="bg-white text-primary hover:bg-white/90 shadow-xl group transition-all hover:scale-105"
-                  >
-                    Get Started
-                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </Link>
-                <Link href="/sign-in">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="bg-transparent border-2 border-white text-white hover:bg-white/10 hover:text-white hover:shadow-lg transition-all"
-                  >
-                    Learn More
-                  </Button>
-                </Link>
-              </SignedOut>
+              {!isSignedIn && (
+                <>
+                  <Link href="/sign-up">
+                    <Button
+                      size="lg"
+                      className="bg-white text-primary hover:bg-white/90 shadow-xl group transition-all hover:scale-105"
+                    >
+                      Get Started
+                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </Link>
+                  <Link href="/sign-in">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="bg-transparent border-2 border-white text-white hover:bg-white/10 hover:text-white hover:shadow-lg transition-all"
+                    >
+                      Learn More
+                    </Button>
+                  </Link>
+                </>
+              )}
 
-              <SignedIn>
-                {loading ? (
-                  <div className="flex items-center gap-2 text-white">
-                    <Recycle className="h-5 w-5 animate-spin" />
-                    <span>Loading...</span>
-                  </div>
-                ) : userRole === "ADMIN" ? (
-                  <Link href="/admin">
-                    <Button
-                      size="lg"
-                      className="bg-white text-primary hover:bg-white/90 shadow-xl"
-                    >
-                      ⚙️ Admin Panel
-                    </Button>
-                  </Link>
-                ) : (
-                  <Link href="/dashboard/home">
-                    <Button
-                      size="lg"
-                      className="bg-white text-primary hover:bg-white/90 shadow-xl transition-transform hover:scale-105"
-                    >
-                      🌍 Go to Dashboard
-                    </Button>
-                  </Link>
-                )}
-                <UserButton afterSignOutUrl="/" />
-              </SignedIn>
+              {isSignedIn && (
+                <>
+                  {loading || authLoading ? (
+                    <div className="flex items-center gap-2 text-white">
+                      <Recycle className="h-5 w-5 animate-spin" />
+                      <span>Loading...</span>
+                    </div>
+                  ) : userRole === "ADMIN" ? (
+                    <Link href="/admin">
+                      <Button
+                        size="lg"
+                        className="bg-white text-primary hover:bg-white/90 shadow-xl"
+                      >
+                        ⚙️ Admin Panel
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Link href="/dashboard/home">
+                      <Button
+                        size="lg"
+                        className="bg-white text-primary hover:bg-white/90 shadow-xl transition-transform hover:scale-105"
+                      >
+                        🌍 Go to Dashboard
+                      </Button>
+                    </Link>
+                  )}
+                  <LogoutButton />
+                </>
+              )}
             </div>
           </motion.div>
 

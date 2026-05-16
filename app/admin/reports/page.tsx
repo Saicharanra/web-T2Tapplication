@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,7 @@ export default function ReportsPage() {
   const fetchReports = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/reports');
+      const response = await fetchWithAuth('/api/admin/reports');
       if (!response.ok) {
         throw new Error('Failed to fetch reports');
       }

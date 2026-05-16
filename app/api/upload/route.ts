@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { uploadImage } from "@/lib/supabase";
+import { verifySession } from "@/lib/firebase-admin";
+import cloudinary from "@/lib/cloudinary";
 
-// Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -11,9 +10,8 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
 
 export async function POST(req: NextRequest) {
   try {
-    // Await auth() for Next.js 15 compatibility
-    const authResult = await auth();
-    const { userId } = authResult;
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -26,7 +24,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Validate file type
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
         { error: "Invalid file type. Only JPEG, PNG, and WebP are allowed." },
@@ -34,7 +31,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         { error: "File too large. Maximum size is 5MB." },
@@ -42,28 +38,71 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate unique submission ID
     const submissionId = crypto.randomUUID();
+    const buffer = Buffer.from(await file.arrayBuffer());
+    
+    // Cloudinary Upload
+    console.log(`🚀 Uploading file to Cloudinary...`);
+    
+    const uploadToCloudinary = () => {
+      return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: `submissions/${userId}`,
+            public_id: submissionId,
+            resource_type: 'auto',
+          },
+          (error, result) => {
+            if (error) {
+              console.error("❌ Cloudinary upload error:", error);
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+        uploadStream.end(buffer);
+      });
+    };
 
-    // Upload to Supabase Storage
-    const uploadResult = await uploadImage(file, userId, submissionId);
+    const cloudinaryResult = (await uploadToCloudinary()) as any;
+    const publicUrl = cloudinaryResult.secure_url;
+    const imagePath = cloudinaryResult.public_id;
+
+    console.log(`✅ Upload successful: ${publicUrl}`);
 
     return NextResponse.json(
       {
         success: true,
-        imageUrl: uploadResult.publicUrl,
-        imagePath: uploadResult.path,
+        imageUrl: publicUrl,
+        imagePath: imagePath,
         submissionId,
-        fileSize: uploadResult.size,
-        mimeType: uploadResult.mimeType,
+        fileSize: file.size,
+        mimeType: file.type,
       },
       { status: 200 }
     );
-  } catch (error) {
-    console.error("Error uploading image:", error);
+  } catch (error: any) {
+    console.error("❌ Error uploading image:", error);
+    
+    let errorMessage = "Failed to upload image";
+    let status = 500;
+
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (error.message.includes('Must provide')) {
+      errorMessage = "Cloudinary configuration error. Please check your environment variables.";
+      status = 500;
+    }
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to upload image" },
-      { status: 500 }
+      { 
+        error: errorMessage,
+        details: error.message
+      },
+      { status }
     );
   }
 }

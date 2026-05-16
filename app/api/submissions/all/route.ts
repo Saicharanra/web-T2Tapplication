@@ -1,46 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    console.log("🔍 Admin submissions request from user:", userId);
+    const decodedToken = await verifySession(req);
+    const adminUserId = decodedToken.uid;
 
-    if (!userId) {
+    if (!adminUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create Supabase client (awaited headers fix ✅)
-    const supabase = await createSupabaseServerClient();
-
     // Check if user is admin
-    const { data: user, error: userError } = await supabase
-      .from("User")
-      .select("role, name, email")
-      .eq("id", userId)
-      .single();
+    const adminUserDoc = await adminDb.collection("users").doc(adminUserId).get();
+    const adminUser = adminUserDoc.data();
 
-    if (userError) {
-      return NextResponse.json(
-        {
-          error: "User not found in database",
-          details: userError.message,
-          userId,
-        },
-        { status: 404 }
-      );
-    }
-
-    if (user?.role !== "ADMIN") {
+    if (!adminUserDoc.exists || adminUser?.role !== "ADMIN") {
       return NextResponse.json(
         {
           error: "Forbidden: Admin access required",
-          currentRole: user?.role,
-          userId,
+          currentRole: adminUser?.role,
         },
         { status: 403 }
       );
@@ -50,71 +31,65 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const filterUserId = searchParams.get("userId");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limitNum = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    // For count endpoint
+    // Build query
+    let baseQuery: any = adminDb.collection("submissions");
+
+    if (status) baseQuery = baseQuery.where("status", "==", status);
+    if (filterUserId) baseQuery = baseQuery.where("userId", "==", filterUserId);
+
+    // Count request
     if (searchParams.has("count")) {
-      let countQuery = supabase
-        .from("Submission")
-        .select("*", { count: "exact", head: true });
-
-      if (status) countQuery = countQuery.eq("status", status);
-      if (filterUserId) countQuery = countQuery.eq("userId", filterUserId);
-
-      const { count, error: countError } = await countQuery;
-
-      if (countError) {
-        console.error("❌ Supabase count error:", countError);
-        return NextResponse.json(
-          { error: "Failed to count submissions", details: countError.message },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({ count: count || 0 });
+      const snapshot = await baseQuery.count().get();
+      return NextResponse.json({ count: snapshot.data().count || 0 });
     }
 
-    // Build query for data
-    let query = supabase
-      .from("Submission")
-      .select(
-        `
-        *,
-        user:User!userId(
-          id,
-          name,
-          email,
-          level,
-          points
-        )
-      `,
-        { count: "exact" }
-      )
-      .order("createdAt", { ascending: false })
-      .range(offset, offset + limit - 1);
+    // Data request
+    // Note: Firestore pagination is different (startAfter), but for simple list we fetch all and slice for small offsets
+    // For production, this should be improved with real pagination tokens
+    const snapshot = await baseQuery.get();
+    
+    const allSubmissions = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    
+    // Sort in memory
+    allSubmissions.sort((a: any, b: any) => {
+      const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+      const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+      return dateB.getTime() - dateA.getTime();
+    });
 
-    if (status) query = query.eq("status", status);
-    if (filterUserId) query = query.eq("userId", filterUserId);
+    const slicedSubmissions = allSubmissions.slice(offset, offset + limitNum);
 
-    const { data: submissions, error, count } = await query;
-
-    if (error) {
-      console.error("❌ Supabase query error:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch submissions", details: error.message },
-        { status: 500 }
-      );
-    }
+    // Fetch user info for each submission
+    const submissionsWithUser = await Promise.all(slicedSubmissions.map(async (sub: any) => {
+      const userDoc = await adminDb.collection("users").doc(sub.userId).get();
+      const userData = userDoc.data();
+      return {
+        ...sub,
+        createdAt: sub.createdAt?.toDate?.() || sub.createdAt,
+        user: userData ? {
+          id: userDoc.id,
+          name: userData.name,
+          email: userData.email,
+          level: userData.level,
+          points: userData.points
+        } : null
+      };
+    }));
 
     return NextResponse.json({
-      submissions: submissions || [],
-      total: count || 0,
-      limit,
+      submissions: submissionsWithUser,
+      total: allSubmissions.length,
+      limit: limitNum,
       offset,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("💥 Server Error:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Failed to fetch submissions" },
       { status: 500 }

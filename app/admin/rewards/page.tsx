@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import {
 /* ──────────────────── Types ──────────────────── */
 
 interface Reward {
-  reward_id: number;
+  reward_id: string;
   title: string;
   description: string;
   points_required: number;
@@ -27,8 +28,8 @@ interface Reward {
 }
 
 interface Redemption {
-  redemption_id: number;
-  reward_id: number;
+  redemption_id: string;
+  reward_id: string;
   user_id: string;
   redeemed_at: string;
   reward?: { title: string; points_required: number; image_url: string } | null;
@@ -74,13 +75,13 @@ export default function RewardsPage() {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [form, setForm] = useState<RewardForm>(emptyForm);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // Delete state
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   /* ──────────────── Fetch Data ──────────────── */
@@ -88,7 +89,7 @@ export default function RewardsPage() {
   const fetchRewards = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch("/api/admin/rewards");
+      const res = await fetchWithAuth("/api/admin/rewards");
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to fetch rewards");
@@ -103,7 +104,7 @@ export default function RewardsPage() {
 
   const fetchRedemptions = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/rewards/redemptions?limit=10");
+      const res = await fetchWithAuth("/api/admin/rewards/redemptions?limit=10");
       if (!res.ok) return;
       const data = await res.json();
       setRedemptions(data.redemptions || []);
@@ -187,7 +188,7 @@ export default function RewardsPage() {
       const url = modalMode === "add" ? "/api/admin/rewards" : `/api/admin/rewards/${editingId}`;
       const method = modalMode === "add" ? "POST" : "PUT";
 
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -211,10 +212,10 @@ export default function RewardsPage() {
     }
   };
 
-  const handleDelete = async (rewardId: number) => {
+  const handleDelete = async (rewardId: string) => {
     setDeleting(true);
     try {
-      const res = await fetch(`/api/admin/rewards/${rewardId}`, { method: "DELETE" });
+      const res = await fetchWithAuth(`/api/admin/rewards/${rewardId}`, { method: "DELETE" });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to delete reward");

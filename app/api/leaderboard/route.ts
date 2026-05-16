@@ -1,89 +1,90 @@
-import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { NextRequest, NextResponse } from "next/server";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create Supabase client
-    const supabase = await createSupabaseServerClient();
-
-    // Fetch top users ordered by points
-    const { data: leaderboard, error } = await supabase
-      .from("User")
-      .select("id, name, email, points, level, updatedAt")
-      .eq("status", "ACTIVE")
-      .order("points", { ascending: false })
-      .limit(50);
-
-    if (error) {
-      console.error("❌ Leaderboard query error:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch leaderboard", details: error.message },
-        { status: 500 }
-      );
-    }
-
-    // Count total submissions per user
-    const userIds = leaderboard?.map((u) => u.id) || [];
+    // Fetch all users to calculate accurate rank
+    // For large datasets, this would need an index and offset/limit
+    // But for initial scale, fetching and sorting in-memory is more robust
+    const usersSnapshot = await adminDb.collection("users").get();
     
-    const { data: submissionCounts, error: submissionError } = await supabase
-      .from("Submission")
-      .select("userId")
-      .in("userId", userIds);
+    let allUsers = usersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as any));
 
-    if (submissionError) {
-      console.error("❌ Submission count error:", submissionError);
-    }
+    // Sort by points descending
+    allUsers.sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
 
-    // Calculate submission counts
-    const submissionMap = new Map<string, number>();
-    submissionCounts?.forEach((sub) => {
-      submissionMap.set(sub.userId, (submissionMap.get(sub.userId) || 0) + 1);
+    // Map to the format expected by the frontend
+    const fullLeaderboard = allUsers.map((user, index) => {
+      const name = user.name || "Eco Warrior";
+      const initials = name
+        .split(" ")
+        .map((n: string) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2) || "??";
+
+      return {
+        rank: index + 1,
+        id: user.id,
+        name: name,
+        email: user.email || "",
+        points: Number(user.points) || 0,
+        level: user.level || "BRONZE",
+        submissions: 0, // We'll fill this below for top users
+        avatar: initials,
+        joinedAt: user.joinedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      };
     });
 
-    // Enhance leaderboard with submission counts and rank
-    const enhancedLeaderboard = leaderboard?.map((user, index) => ({
-      rank: index + 1,
-      id: user.id,
-      name: user.name || "Unknown User",
-      email: user.email,
-      points: user.points,
-      level: user.level,
-      submissions: submissionMap.get(user.id) || 0,
-      avatar: user.name
-        ? user.name
-            .split(" ")
-            .map((n: string) => n[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2)
-        : "??",
-      joinedAt: user.updatedAt,
-    })) || [];
+    // Get top 50 for the list
+    const top50 = fullLeaderboard.slice(0, 50);
 
-    // Find current user's rank
-    const currentUserRank = enhancedLeaderboard.findIndex((u) => u.id === userId);
-    const currentUser = currentUserRank >= 0 ? {
-      ...enhancedLeaderboard[currentUserRank],
-      rank: currentUserRank + 1,
-    } : null;
+    // Get current user's rank
+    const userIndex = fullLeaderboard.findIndex(u => u.id === userId);
+    let currentUser = userIndex !== -1 ? fullLeaderboard[userIndex] : null;
+
+    // Enhance top users and current user with submission counts
+    // (Doing this selectively to avoid massive amounts of count queries)
+    const usersToEnhance = [...top50];
+    if (currentUser && !top50.find(u => u.id === userId)) {
+      usersToEnhance.push(currentUser);
+    }
+
+    await Promise.all(usersToEnhance.map(async (u) => {
+      try {
+        const subSnapshot = await adminDb.collection("submissions")
+          .where("userId", "==", u.id)
+          .count()
+          .get();
+        u.submissions = subSnapshot.data().count;
+      } catch (e) {
+        console.warn(`⚠️ Could not count submissions for user ${u.id}`);
+      }
+    }));
 
     return NextResponse.json({
-      leaderboard: enhancedLeaderboard,
+      leaderboard: top50,
       currentUser,
-      total: enhancedLeaderboard.length,
+      total: fullLeaderboard.length,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("💥 Leaderboard Server Error:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Failed to fetch leaderboard" },
       { status: 500 }

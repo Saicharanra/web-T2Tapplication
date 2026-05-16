@@ -1,73 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
-// Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-/**
- * GET: Fetch user's wallet data including points and transaction history
- */
-export async function GET(_req: NextRequest) {  // Keep underscore prefix to indicate intentionally unused
+export async function GET(req: NextRequest) {
   try {
-    // Await auth() for Next.js 15 compatibility
-    const authResult = await auth();
-    const { userId } = authResult;
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log('💰 Fetching wallet data for user:', userId);
-
-    // Create Supabase server client
-    const supabase = await createSupabaseServerClient();
-
-    // Get user's current points
-    const { data: user, error: userError } = await supabase
-      .from('User')
-      .select('points, name, email')
-      .eq('id', userId)
-      .single();
-
-    if (userError) {
-      console.error('❌ Error fetching user:', userError);
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+    // Get user data
+    const userDoc = await adminDb.collection("users").doc(userId).get();
+    if (!userDoc.exists) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+    const userData = userDoc.data();
 
-    console.log('👤 User:', user.name, 'Current points:', user.points);
+    // Get points history
+    let transactions: any[] = [];
+    try {
+      const historySnapshot = await adminDb.collection("pointsHistory")
+        .where("userId", "==", userId)
+        .orderBy("createdAt", "desc")
+        .get();
 
-    // Get all points history with submission details
-    const { data: history, error: historyError } = await supabase
-      .from('PointsHistory')
-      .select(`
-        *,
-        submission:Submission(wasteType)
-      `)
-      .eq('userId', userId)
-      .order('createdAt', { ascending: false });
-
-    if (historyError) {
-      console.error('❌ Error fetching history:', historyError);
+      transactions = await Promise.all(historySnapshot.docs.map(async (doc) => {
+        const data = doc.data();
+        let submission = null;
+        if (data.submissionId) {
+          try {
+            const subDoc = await adminDb.collection("submissions").doc(data.submissionId).get();
+            if (subDoc.exists) {
+              submission = { wasteType: subDoc.data()?.wasteType };
+            }
+          } catch (e) {
+            console.warn(`⚠️ Could not fetch submission ${data.submissionId} for history`);
+          }
+        }
+        return {
+          id: doc.id,
+          points: Number(data.points) || 0,
+          description: data.description || `Points from recycling`,
+          type: data.type,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAt).toISOString(),
+          submission,
+        };
+      }));
+    } catch (e) {
+      console.warn("⚠️ Could not fetch points history (index might be missing):", e);
     }
-
-    console.log('📊 Transaction history count:', history?.length || 0);
 
     // Calculate stats
-    const transactions = history || [];
     const totalEarned = transactions
       .filter(t => t.type === 'EARNED' || t.type === 'BONUS')
-      .reduce((sum, t) => sum + t.points, 0);
+      .reduce((sum, t) => sum + (Number(t.points) || 0), 0);
 
     const totalRedeemed = Math.abs(transactions
       .filter(t => t.type === 'REDEEMED')
-      .reduce((sum, t) => sum + t.points, 0));
+      .reduce((sum, t) => sum + (Number(t.points) || 0), 0));
 
-    // Calculate points earned this month
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     
@@ -76,32 +71,20 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
         const transactionDate = new Date(t.createdAt);
         return transactionDate >= firstDayOfMonth && (t.type === 'EARNED' || t.type === 'BONUS');
       })
-      .reduce((sum, t) => sum + t.points, 0);
-
-    console.log('✅ Wallet stats calculated:', {
-      totalPoints: user.points,
-      totalEarned,
-      totalRedeemed,
-      thisMonthPoints,
-      transactionCount: transactions.length
-    });
+      .reduce((sum, t) => sum + (Number(t.points) || 0), 0);
 
     return NextResponse.json({
-      totalPoints: user.points || 0,
+      totalPoints: Number(userData?.points) || 0,
       thisMonthPoints,
       totalEarned,
       totalRedeemed,
-      transactions: transactions.map(t => ({
-        id: t.id,
-        points: t.points,
-        description: t.description || `Points from recycling`,
-        type: t.type,
-        createdAt: t.createdAt,
-        submission: t.submission,
-      })),
+      transactions,
     }, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Error in wallet route:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Failed to fetch wallet data" },
       { status: 500 }

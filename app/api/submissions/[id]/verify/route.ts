@@ -1,169 +1,165 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
-// Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Verify or reject submission
+const DEFAULT_WASTE_POINTS: Record<string, number> = {
+  "Plastic Bottles": 15,
+  "Paper Waste": 10,
+  "Metal Cans": 25,
+  "Glass Bottles": 20,
+  "Cardboard": 12,
+  "E-Waste": 50,
+  "Organic Waste": 18,
+  "Mixed Recyclables": 8
+};
+
+const STREAK_BONUSES: Record<number, number> = {
+  5: 20,
+  10: 50,
+  15: 100,
+  30: 150
+};
+
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   try {
-    // Await auth() for Next.js 15 compatibility
-    const authResult = await auth();
-    const { userId } = authResult;
+    const decodedToken = await verifySession(req);
+    const adminUserId = decodedToken.uid;
 
-    console.log('🔍 Verify/Reject request from:', userId, 'for submission:', params.id);
-
-    if (!userId) {
+    if (!adminUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create Supabase server client
-    const supabase = await createSupabaseServerClient();
-
     // Check if user is admin
-    const { data: user, error: userError } = await supabase
-      .from('User')
-      .select('id, role, name')
-      .eq('id', userId)
-      .single();
-
-    if (userError || !user) {
-      console.error('❌ User not found:', userError);
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    if (user.role !== "ADMIN") {
-      console.error('❌ User is not admin. Role:', user.role);
+    const adminUserDoc = await adminDb.collection("users").doc(adminUserId).get();
+    if (!adminUserDoc.exists || adminUserDoc.data()?.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
-
-    console.log('✅ Admin verified:', user.name);
 
     const body = await req.json();
     const { status, points, rejectionReason } = body;
 
     if (!status) {
-      return NextResponse.json(
-        { error: "Status is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Status is required" }, { status: 400 });
     }
 
-    if (status === "VERIFIED" && !points) {
-      return NextResponse.json(
-        { error: "Points required for verification" },
-        { status: 400 }
-      );
-    }
+    // Run transaction
+    console.log(`🔄 Starting transaction for submission ${params.id}...`);
+    const result = await adminDb.runTransaction(async (transaction) => {
+      const submissionRef = adminDb.collection("submissions").doc(params.id);
+      const submissionDoc = await transaction.get(submissionRef);
 
-    console.log('📝 Updating submission:', params.id, 'to status:', status);
+      if (!submissionDoc.exists) {
+        console.error(`❌ Submission ${params.id} not found`);
+        throw new Error("Submission not found");
+      }
 
-    // Get current submission to find the user
-    const { data: currentSubmission, error: fetchError } = await supabase
-      .from('Submission')
-      .select('userId, wasteType, pointsAwarded')
-      .eq('id', params.id)
-      .single();
+      const submissionData = submissionDoc.data()!;
+      const userId = submissionData.userId;
+      const wasteType = submissionData.wasteType;
+      
+      // Fetch dynamic points config
+      const settingsDoc = await transaction.get(adminDb.collection("settings").doc("pointsConfig"));
+      const pointsConfig = settingsDoc.exists ? settingsDoc.data() as Record<string, number> : DEFAULT_WASTE_POINTS;
 
-    if (fetchError || !currentSubmission) {
-      console.error('❌ Submission not found:', fetchError);
-      return NextResponse.json(
-        { error: "Submission not found" },
-        { status: 404 }
-      );
-    }
+      // STRICT ENFORCEMENT: Always use the global settings. No manual overrides allowed.
+      const pointsToAward = pointsConfig[wasteType] || 10;
+      
+      if (!userId) {
+        console.error(`❌ Submission ${params.id} is corrupted: missing userId`);
+        throw new Error("Submission data is corrupted: missing userId");
+      }
 
-    console.log('📦 Current submission user:', currentSubmission.userId);
+      // Prevent duplicate verification if status is already set
+      if (submissionData.status === 'VERIFIED' && status === 'VERIFIED') {
+        console.warn(`⚠️ Submission ${params.id} is already verified.`);
+        return {
+          id: params.id,
+          status: submissionData.status,
+          pointsAwarded: submissionData.pointsAwarded,
+          message: "Submission was already verified"
+        };
+      }
 
-    // Update submission status
-    const { data: submission, error: updateError } = await supabase
-      .from('Submission')
-      .update({
+      // --- ALL READS MUST HAPPEN HERE ---
+      let userDoc = null;
+      let userRef = null;
+      if (status === 'VERIFIED') {
+        userRef = adminDb.collection("users").doc(userId);
+        userDoc = await transaction.get(userRef);
+      }
+      // --- END OF READS ---
+
+      // --- ALL WRITES MUST HAPPEN HERE ---
+      console.log(`📝 Updating submission status to ${status} for user ${userId} with ${pointsToAward} points`);
+
+      // Update submission data defensively
+      const updateData: any = {
         status,
-        pointsAwarded: status === 'VERIFIED' ? points : 0,
-        verifiedAt: status === 'VERIFIED' ? new Date().toISOString() : null,
-        assignedAdminId: userId,
-        rejectionReason: status === 'REJECTED' ? rejectionReason : null,
-      })
-      .eq('id', params.id)
-      .select()
-      .single();
+        pointsAwarded: status === 'VERIFIED' ? pointsToAward : 0,
+        verifiedAt: status === 'VERIFIED' ? new Date() : null,
+        assignedAdminId: adminUserId || 'system',
+        updatedAt: new Date(),
+      };
 
-    if (updateError) {
-      console.error('❌ Error updating submission:', updateError);
-      return NextResponse.json(
-        { error: 'Failed to update submission', details: updateError.message },
-        { status: 500 }
-      );
-    }
+      if (status === 'REJECTED') {
+        updateData.rejectionReason = rejectionReason || 'No reason provided';
+      }
 
-    console.log('✅ Submission updated:', submission.id, 'Status:', submission.status);
+      transaction.update(submissionRef, updateData);
 
-    // If verified, update user points and create history
-    if (status === 'VERIFIED' && points > 0) {
-      console.log('💰 Awarding', points, 'points to user:', currentSubmission.userId);
-
-      // Get current user points
-      const { data: userData, error: userFetchError } = await supabase
-        .from('User')
-        .select('points, name, email')
-        .eq('id', currentSubmission.userId)
-        .single();
-
-      if (userFetchError) {
-        console.error('❌ Error fetching user:', userFetchError);
-      } else {
-        console.log('👤 User before update:', userData.name, 'Points:', userData.points);
-
-        // Update user points
-        const newPoints = (userData.points || 0) + points;
-        const { data: updatedUser, error: pointsUpdateError } = await supabase
-          .from('User')
-          .update({ points: newPoints })
-          .eq('id', currentSubmission.userId)
-          .select()
-          .single();
-
-        if (pointsUpdateError) {
-          console.error('❌ Error updating user points:', pointsUpdateError);
-        } else {
-          console.log('✅ User points updated:', updatedUser.name, 'New points:', updatedUser.points);
-        }
-
-        // Create points history record
-        const { error: historyError } = await supabase
-          .from('PointsHistory')
-          .insert({
-            userId: currentSubmission.userId,
-            submissionId: submission.id,
-            points: points,
-            description: `Points earned from ${currentSubmission.wasteType} recycling`,
-            type: 'EARNED',
+      if (status === 'VERIFIED' && userRef && userDoc) {
+        if (userDoc.exists) {
+          const userData = userDoc.data()!;
+          const currentPoints = Number(userData.points) || 0;
+          const newPoints = currentPoints + pointsToAward;
+          
+          console.log(`💰 Awarding ${pointsToAward} points to user ${userId}. New total: ${newPoints}`);
+          
+          transaction.update(userRef, { 
+            points: newPoints,
+            updatedAt: new Date()
           });
 
-        if (historyError) {
-          console.error('❌ Error creating points history:', historyError);
+          // Create points history record
+          const historyRef = adminDb.collection("pointsHistory").doc();
+          transaction.set(historyRef, {
+            userId: userId,
+            submissionId: params.id,
+            points: pointsToAward,
+            description: `Points earned from ${wasteType || 'recycling'}`,
+            type: 'EARNED',
+            createdAt: new Date(),
+          });
         } else {
-          console.log('✅ Points history created');
+          console.warn(`⚠️ User ${userId} not found in database. Skipping point award.`);
         }
       }
-    }
 
-    console.log('🎉 Verification complete!');
+      return {
+        id: params.id,
+        status,
+        pointsAwarded: status === 'VERIFIED' ? pointsToAward : 0,
+      };
+    });
+
+    console.log(`✅ Transaction completed for ${params.id}`);
 
     return NextResponse.json({
-      submission,
+      submission: result,
       message: status === 'VERIFIED' 
-        ? `Submission verified! ${points} points awarded.`
+        ? `Submission verified! ${result.pointsAwarded} points awarded.`
         : 'Submission rejected.'
     }, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Error in verify route:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
-      { error: "Failed to verify submission", details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: "Failed to verify submission", details: error.message },
       { status: 500 }
     );
   }

@@ -1,44 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
-// Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-/**
- * GET: Fetch current user's profile statistics
- */
-export async function GET(_req: NextRequest) {  // Keep underscore prefix to indicate intentionally unused
+export async function GET(req: NextRequest) {
   try {
-    // Await auth() for Next.js 15 compatibility
-    const authResult = await auth();
-    const { userId } = authResult;
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create Supabase server client
-    const supabase = await createSupabaseServerClient();
+    // Get user document
+    const userDoc = await adminDb.collection('users').doc(userId).get();
+    const userData = userDoc.data();
 
-    // Get user's total points
-    const { data: user } = await supabase
-      .from('User')
-      .select('points')
-      .eq('id', userId)
-      .single();
+    // Get user's submissions
+    let submissions: any[] = [];
+    try {
+      const submissionsSnapshot = await adminDb.collection('submissions')
+        .where('userId', '==', userId)
+        .get();
+      submissions = submissionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.warn("⚠️ Could not fetch submissions:", e);
+    }
 
-    // Get total submissions count by status
-    const { data: submissions } = await supabase
-      .from('Submission')
-      .select('status, wasteType, createdAt')
-      .eq('userId', userId);
-
-    const totalSubmissions = submissions?.length || 0;
-    const verifiedSubmissions = submissions?.filter(s => s.status === 'VERIFIED').length || 0;
-    const pendingSubmissions = submissions?.filter(s => s.status === 'PENDING').length || 0;
-    const rejectedSubmissions = submissions?.filter(s => s.status === 'REJECTED').length || 0;
+    const totalSubmissions = submissions.length;
+    const verifiedSubmissions = submissions.filter(s => s.status === 'VERIFIED').length;
+    const pendingSubmissions = submissions.filter(s => s.status === 'PENDING').length;
+    const rejectedSubmissions = submissions.filter(s => s.status === 'REJECTED').length;
 
     // Calculate verification rate
     const verificationRate = totalSubmissions > 0 
@@ -46,48 +39,57 @@ export async function GET(_req: NextRequest) {  // Keep underscore prefix to ind
       : 0;
 
     // Find most recycled waste type
-    const wasteTypeCounts = submissions?.reduce((acc: Record<string, number>, curr) => {
-      acc[curr.wasteType] = (acc[curr.wasteType] || 0) + 1;
+    const wasteTypeCounts = submissions.reduce((acc: Record<string, number>, curr) => {
+      const type = curr.wasteType || 'Unknown';
+      acc[type] = (acc[type] || 0) + 1;
       return acc;
     }, {});
 
-    const mostRecycled = wasteTypeCounts 
-      ? Object.entries(wasteTypeCounts).sort(([,a], [,b]) => (b as number) - (a as number))[0]
-      : null;
-
+    const mostRecycled = Object.entries(wasteTypeCounts).sort(([,a], [,b]) => (b as number) - (a as number))[0];
     const mostRecycledType = mostRecycled ? mostRecycled[0] : 'N/A';
-    const mostRecycledCount = mostRecycled ? mostRecycled[1] : 0;
+    const mostRecycledCount = mostRecycled ? Number(mostRecycled[1]) : 0;
 
     // Calculate streak (submissions in last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
-    const recentSubmissions = submissions?.filter(s => 
-      new Date(s.createdAt) >= sevenDaysAgo
-    ).length || 0;
+    const recentSubmissions = submissions.filter(s => {
+        if (!s.createdAt) return false;
+        const createdAt = s.createdAt.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+        return createdAt >= sevenDaysAgo;
+    }).length;
 
-    // Get user's rank (simplified - count users with more points)
-    const { data: allUsers } = await supabase
-      .from('User')
-      .select('points')
-      .order('points', { ascending: false });
-
-    const userRank = allUsers ? (allUsers.findIndex(u => u.points <= (user?.points || 0)) + 1) : 0;
+    // Get user's rank
+    let userRank = 0;
+    try {
+      const allUsersSnapshot = await adminDb.collection('users')
+        .orderBy('points', 'desc')
+        .limit(100) // Limit to avoid performance issues
+        .get();
+      
+      const rankIndex = allUsersSnapshot.docs.findIndex(doc => doc.id === userId);
+      userRank = rankIndex !== -1 ? rankIndex + 1 : 0;
+    } catch (e) {
+      console.warn("⚠️ Could not calculate rank (index might be missing):", e);
+    }
 
     return NextResponse.json({
       totalSubmissions,
       verifiedSubmissions,
       pendingSubmissions,
       rejectedSubmissions,
-      totalPoints: user?.points || 0,
+      totalPoints: Number(userData?.points) || 0,
       mostRecycledType,
       mostRecycledCount,
       streak: recentSubmissions,
       verificationRate,
       rank: userRank,
     }, { status: 200 });
-  } catch (error) {
-    console.error("Error fetching user stats:", error);
+  } catch (error: any) {
+    console.error("❌ Error fetching profile stats:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Failed to fetch statistics" },
       { status: 500 }

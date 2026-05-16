@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Very simple rules to fix permission issues
+    match /users/{userId} {
+      // Allow any authenticated user to read profiles
+      allow read: if request.auth != null;
+      // Allow users to create/update their own profile
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /submissions/{submissionId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null; // Simpler for now
+    }
+
+    match /redemptions/{redemptionId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+    }
+
+    match /rewards/{rewardId} {
+      allow read: if true;
+      allow write: if request.auth != null; // Temporary for setup
+    }
+
+    match /pointsHistory/{historyId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+    }
+  }
+}

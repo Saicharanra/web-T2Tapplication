@@ -1,10 +1,11 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trophy, TrendingUp, Recycle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { usePoints } from "../context/PointsContext";
 
 interface LeaderboardUser {
@@ -47,7 +48,7 @@ const getLevelGradient = (level: string) => {
 
 export default function LeaderboardPage() {
   const { toast } = useToast();
-  const { user: clerkUser } = useUser();
+  const { user: clerkUser } = useAuth();
   const { points: globalPoints } = usePoints();
   const [loading, setLoading] = useState(true);
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
@@ -56,7 +57,7 @@ export default function LeaderboardPage() {
   const fetchLeaderboard = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/leaderboard');
+      const response = await fetchWithAuth('/api/leaderboard');
 
       if (!response.ok) {
         console.warn('Backend API unavailable (likely missing DB config). Displaying empty leaderboard.');
@@ -68,13 +69,13 @@ export default function LeaderboardPage() {
           { rank: 5, id: "u-5", name: "Neha Gupta", email: "suresh@example.com", points: 2100, level: "BRONZE", submissions: 32, avatar: "https://i.pravatar.cc/150?u=suresh", joinedAt: new Date().toISOString() },
           {
             rank: 15,
-            id: clerkUser?.id || "curr-user",
-            name: clerkUser?.fullName || clerkUser?.firstName || "Vishnu (You)",
-            email: clerkUser?.primaryEmailAddress?.emailAddress || "vishnu@example.com",
+            id: clerkUser?.uid || "curr-user",
+            name: clerkUser?.displayName || "Vishnu (You)",
+            email: clerkUser?.email || "vishnu@example.com",
             points: 300,
             level: "BRONZE",
             submissions: 3,
-            avatar: clerkUser?.imageUrl || "https://i.pravatar.cc/150?u=vishnu",
+            avatar: clerkUser?.photoURL || "https://i.pravatar.cc/150?u=vishnu",
             joinedAt: new Date().toISOString()
           },
         ];
