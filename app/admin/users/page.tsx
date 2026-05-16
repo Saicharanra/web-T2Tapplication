@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, UserPlus, TrendingUp, Award, Recycle, Search } from "lucide-react";
@@ -49,7 +50,7 @@ export default function UsersPage() {
     try {
       setLoading(true);
 
-      const response = await fetch("/api/admin/users");
+      const response = await fetchWithAuth('/api/admin/users');
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -126,6 +127,42 @@ export default function UsersPage() {
     { title: "New This Week", value: stats.newThisWeek, icon: UserPlus },
     { title: "Top Contributors", value: stats.topContributors, icon: Award },
   ];
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+
+  // 🔥 Update User Role
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    try {
+      setUpdatingUserId(userId);
+      const response = await fetchWithAuth(`/api/admin/users/${userId}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update role");
+      }
+
+      toast({
+        title: "✅ Success",
+        description: "User role updated successfully",
+      });
+
+      // Update local state
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+      );
+    } catch (error) {
+      toast({
+        title: "❌ Error",
+        description: error instanceof Error ? error.message : "Failed to update role",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
 
   // 🔄 Loading
   if (loading) {
@@ -230,7 +267,22 @@ export default function UsersPage() {
                         {user.name}
                       </td>
                       <td className="py-3 px-4">{user.email}</td>
-                      <td className="py-3 px-4">{user.role}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={user.role}
+                            disabled={updatingUserId === user.id}
+                            onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                            className="border rounded px-2 py-1 text-sm bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                          >
+                            <option value="USER">User</option>
+                            <option value="ADMIN">Admin</option>
+                          </select>
+                          {updatingUserId === user.id && (
+                            <Recycle className="h-4 w-4 animate-spin text-blue-500" />
+                          )}
+                        </div>
+                      </td>
                       <td className="py-3 px-4">{user.level}</td>
                       <td className="py-3 px-4">{user.points}</td>
                       <td className="py-3 px-4">{user.status}</td>

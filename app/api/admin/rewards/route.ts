@@ -1,23 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-/**
- * Helper: Verify the requesting user is an admin
- */
-async function verifyAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string) {
-  const { data: adminUser, error } = await supabase
-    .from("User")
-    .select("role")
-    .eq("id", userId)
-    .single();
-
-  if (error || !adminUser) return false;
-  return adminUser.role === "ADMIN";
-}
 
 /**
  * GET: Fetch all rewards with redemption counts
@@ -25,14 +10,16 @@ async function verifyAdmin(supabase: ReturnType<typeof getSupabaseAdmin>, userId
  */
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = getSupabaseAdmin();
-
-    if (!(await verifyAdmin(supabase, userId))) {
+    // Verify Admin Role
+    const adminUserDoc = await adminDb.collection("users").doc(userId).get();
+    if (!adminUserDoc.exists || adminUserDoc.data()?.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
@@ -42,58 +29,59 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get("category") || "";
 
     // Fetch all rewards
-    let query = supabase
-      .from("Reward")
-      .select("*")
-      .order("created_at", { ascending: false });
+    let query: any = adminDb.collection("rewards");
 
     if (status && status !== "All") {
-      query = query.eq("status", status);
+      query = query.where("status", "==", status);
     }
 
     if (category && category !== "All") {
-      query = query.eq("category", category);
+      query = query.where("category", "==", category);
     }
 
+    const snapshot = await query.get();
+    let rewards = snapshot.docs.map((doc: any) => ({
+      reward_id: doc.id,
+      ...doc.data(),
+      created_at: doc.data().created_at?.toDate?.() || doc.data().created_at,
+    }));
+
+    // Sort in memory to avoid needing a composite index for where + orderBy
+    rewards.sort((a: any, b: any) => {
+      const dateA = a.created_at instanceof Date ? a.created_at.getTime() : new Date(a.created_at).getTime();
+      const dateB = b.created_at instanceof Date ? b.created_at.getTime() : new Date(b.created_at).getTime();
+      return dateB - dateA; // Descending
+    });
+
+    // Filter by search (Firestore doesn't support case-insensitive ilike natively without complex setup)
     if (search) {
-      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
-    }
-
-    const { data: rewards, error: rewardsError } = await query;
-
-    if (rewardsError) {
-      console.error("Error fetching rewards:", rewardsError);
-      return NextResponse.json(
-        { error: "Failed to fetch rewards", details: rewardsError.message },
-        { status: 500 }
+      const lowerSearch = search.toLowerCase();
+      rewards = rewards.filter((r: any) => 
+        r.title.toLowerCase().includes(lowerSearch) || 
+        r.description.toLowerCase().includes(lowerSearch)
       );
     }
 
     // Fetch redemption counts per reward
-    const { data: redemptions, error: redemptionsError } = await supabase
-      .from("RewardRedemption")
-      .select("reward_id");
-
-    if (redemptionsError) {
-      console.error("Error fetching redemptions:", redemptionsError);
-    }
+    const redemptionsSnapshot = await adminDb.collection("redemptions").get();
+    const redemptions = redemptionsSnapshot.docs.map(doc => doc.data());
 
     // Build redemption count map
-    const redemptionMap = new Map<number, number>();
-    redemptions?.forEach((r) => {
+    const redemptionMap = new Map<string, number>();
+    redemptions.forEach((r: any) => {
       redemptionMap.set(r.reward_id, (redemptionMap.get(r.reward_id) || 0) + 1);
     });
 
     // Enhance rewards with redemption counts
-    const enhancedRewards = rewards?.map((reward) => ({
+    const enhancedRewards = rewards.map((reward: any) => ({
       ...reward,
       redemptions: redemptionMap.get(reward.reward_id) || 0,
-    })) || [];
+    }));
 
     // Stats
     const totalRewards = enhancedRewards.length;
-    const activeRewards = enhancedRewards.filter((r) => r.status === "Active").length;
-    const totalRedemptions = enhancedRewards.reduce((sum, r) => sum + r.redemptions, 0);
+    const activeRewards = enhancedRewards.filter((r: any) => r.status === "Active").length;
+    const totalRedemptions = redemptions.length;
 
     return NextResponse.json({
       rewards: enhancedRewards,
@@ -103,10 +91,13 @@ export async function GET(req: NextRequest) {
         totalRedemptions,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in GET /api/admin/rewards:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
-      { error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal server error", message: error.message },
       { status: 500 }
     );
   }
@@ -117,14 +108,16 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = getSupabaseAdmin();
-
-    if (!(await verifyAdmin(supabase, userId))) {
+    // Verify Admin Role
+    const adminUserDoc = await adminDb.collection("users").doc(userId).get();
+    if (!adminUserDoc.exists || adminUserDoc.data()?.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
@@ -140,41 +133,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Points required must be a positive number" }, { status: 400 });
     }
 
-    if (status && !["Active", "Inactive"].includes(status)) {
-      return NextResponse.json({ error: "Status must be 'Active' or 'Inactive'" }, { status: 400 });
-    }
+    const rewardData = {
+      title: title.trim(),
+      description: description?.trim() || "",
+      points_required,
+      image_url: image_url?.trim() || "🎁",
+      status: status || "Active",
+      category: category?.trim() || "General",
+      stock: stock ?? 0,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
 
-    if (stock !== undefined && (typeof stock !== "number" || stock < 0)) {
-      return NextResponse.json({ error: "Stock must be a non-negative number" }, { status: 400 });
-    }
+    const docRef = await adminDb.collection("rewards").add(rewardData);
 
-    const { data: reward, error } = await supabase
-      .from("Reward")
-      .insert({
-        title: title.trim(),
-        description: description?.trim() || "",
-        points_required,
-        image_url: image_url?.trim() || "🎁",
-        status: status || "Active",
-        category: category?.trim() || "General",
-        stock: stock ?? 0,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error creating reward:", error);
-      return NextResponse.json(
-        { error: "Failed to create reward", details: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ reward }, { status: 201 });
-  } catch (error) {
+    return NextResponse.json({ 
+        reward: { reward_id: docRef.id, ...rewardData } 
+    }, { status: 201 });
+  } catch (error: any) {
     console.error("Error in POST /api/admin/rewards:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
-      { error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal server error", message: error.message },
       { status: 500 }
     );
   }

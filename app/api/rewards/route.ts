@@ -1,41 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/**
- * GET: Fetch all active rewards for the user-facing rewards page
- * This endpoint is available to all authenticated users (not admin-only)
- */
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = getSupabaseAdmin();
+    const rewardsSnapshot = await adminDb.collection("rewards").get();
 
-    // Fetch only active rewards
-    const { data: rewards, error } = await supabase
-      .from("Reward")
-      .select("reward_id, title, description, points_required, image_url, status, category, stock")
-      .eq("status", "Active")
-      .order("points_required", { ascending: true });
+    const rewards = rewardsSnapshot.docs
+      .map(doc => ({
+        reward_id: doc.id,
+        ...doc.data()
+      }))
+      .filter((r: any) => r.status === "Active")
+      .sort((a: any, b: any) => (a.points_required || 0) - (b.points_required || 0));
 
-    if (error) {
-      console.error("Error fetching rewards:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch rewards", details: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ rewards: rewards || [] });
-  } catch (error) {
+    return NextResponse.json({ rewards });
+  } catch (error: any) {
     console.error("Error in GET /api/rewards:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -43,17 +36,15 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/**
- * POST: Redeem a reward (deduct points + record redemption)
- */
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = getSupabaseAdmin();
     const body = await req.json();
     const { reward_id } = body;
 
@@ -61,108 +52,79 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "reward_id is required" }, { status: 400 });
     }
 
-    // Fetch the reward
-    const { data: reward, error: rewardError } = await supabase
-      .from("Reward")
-      .select("*")
-      .eq("reward_id", reward_id)
-      .eq("status", "Active")
-      .single();
+    // Using transaction for atomicity
+    const result = await adminDb.runTransaction(async (transaction) => {
+      const rewardRef = adminDb.collection("rewards").doc(reward_id);
+      const rewardDoc = await transaction.get(rewardRef);
 
-    if (rewardError || !reward) {
-      return NextResponse.json({ error: "Reward not found or inactive" }, { status: 404 });
-    }
+      if (!rewardDoc.exists || rewardDoc.data()?.status !== "Active") {
+        throw new Error("Reward not found or inactive");
+      }
 
-    // Check stock
-    if (reward.stock <= 0 && reward.stock !== 999) {
-      return NextResponse.json({ error: "Reward is out of stock" }, { status: 400 });
-    }
+      const reward = rewardDoc.data()!;
+      if (reward.stock <= 0 && reward.stock !== 999) {
+        throw new Error("Reward is out of stock");
+      }
 
-    // Fetch user's current points
-    const { data: user, error: userError } = await supabase
-      .from("User")
-      .select("points")
-      .eq("id", userId)
-      .single();
+      const userRef = adminDb.collection("users").doc(userId);
+      const userDoc = await transaction.get(userRef);
 
-    if (userError || !user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+      if (!userDoc.exists) {
+        throw new Error("User not found");
+      }
 
-    if (user.points < reward.points_required) {
-      return NextResponse.json({
-        error: "Insufficient points",
-        required: reward.points_required,
-        current: user.points,
-      }, { status: 400 });
-    }
+      const user = userDoc.data()!;
+      if ((user.points || 0) < reward.points_required) {
+        throw new Error("Insufficient points");
+      }
 
-    // Deduct points from user
-    const { error: deductError } = await supabase
-      .from("User")
-      .update({ points: user.points - reward.points_required })
-      .eq("id", userId);
+      // Deduct points
+      transaction.update(userRef, { points: (user.points || 0) - reward.points_required });
 
-    if (deductError) {
-      console.error("Error deducting points:", deductError);
-      return NextResponse.json({ error: "Failed to deduct points" }, { status: 500 });
-    }
+      // Decrease stock
+      if (reward.stock !== 999) {
+        transaction.update(rewardRef, { stock: reward.stock - 1 });
+      }
 
-    // Record redemption
-    const { data: redemptionData, error: redemptionError } = await supabase
-      .from("RewardRedemption")
-      .insert({
-        reward_id: reward.reward_id,
+      // Record redemption
+      const redemptionRef = adminDb.collection("redemptions").doc();
+      transaction.set(redemptionRef, {
+        reward_id: reward_id,
         user_id: userId,
-      })
-      .select("redemption_id")
-      .single();
+        redeemed_at: new Date(),
+      });
 
-    if (redemptionError) {
-      console.error("Error recording redemption:", redemptionError);
-      // Attempt to refund points
-      await supabase
-        .from("User")
-        .update({ points: user.points })
-        .eq("id", userId);
-      return NextResponse.json({ error: "Failed to record redemption" }, { status: 500 });
-    }
-
-    // Decrease stock (if not unlimited)
-    if (reward.stock !== 999) {
-      await supabase
-        .from("Reward")
-        .update({ stock: reward.stock - 1 })
-        .eq("reward_id", reward.reward_id);
-    }
-
-    // Record redemption in PointsHistory for wallet transaction history
-    const { error: historyError } = await supabase
-      .from("PointsHistory")
-      .insert({
+      // Record in PointsHistory
+      const historyRef = adminDb.collection("pointsHistory").doc();
+      transaction.set(historyRef, {
         userId: userId,
         points: -reward.points_required,
         description: `Redeemed for ${reward.title}`,
         type: "REDEEMED",
+        createdAt: new Date(),
       });
 
-    if (historyError) {
-      console.error("Error creating points history for redemption:", historyError);
-    }
+      return {
+        newPoints: (user.points || 0) - reward.points_required,
+        redemption_id: redemptionRef.id,
+        reward: {
+          title: reward.title,
+          points_required: reward.points_required,
+        },
+      };
+    });
 
     return NextResponse.json({
       message: "Reward redeemed successfully!",
-      newPoints: user.points - reward.points_required,
-      redemption_id: redemptionData?.redemption_id,
-      reward: {
-        title: reward.title,
-        points_required: reward.points_required,
-      },
+      ...result,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in POST /api/rewards:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
   }

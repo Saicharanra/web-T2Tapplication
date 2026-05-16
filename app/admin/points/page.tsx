@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Coins, TrendingUp, Award, Calendar, Recycle } from "lucide-react";
@@ -37,7 +38,7 @@ export default function PointsHistoryPage() {
   const fetchPointsData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/points');
+      const res = await fetchWithAuth('/api/admin/points');
       if (!res.ok) throw new Error("Failed to fetch points data");
 
       const data = await res.json();

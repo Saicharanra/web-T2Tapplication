@@ -1,8 +1,9 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Menu, X, Leaf, BarChart3, Images, Users, TrendingUp,
   Coins, Settings, Circle, Loader2, Gift, ChevronRight,
@@ -10,7 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { UserButton, useUser, RedirectToSignIn } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 const navigationBase = [
   { name: "Dashboard", href: "/admin", icon: BarChart3, section: "MAIN", description: "Overview & analytics" },
@@ -26,14 +27,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const pathname = usePathname();
-  const { isLoaded, isSignedIn, user } = useUser();
+  const router = useRouter();
+  const { user, loading } = useAuth();
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
     async function fetchPendingCount() {
       try {
-        const res = await fetch("/api/submissions/count?status=pending");
+        const res = await fetchWithAuth("/api/submissions/count?status=PENDING");
         if (res.ok) {
           const data = await res.json();
           setPendingCount(typeof data.count === "number" ? data.count : null);
@@ -42,16 +44,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setPendingCount(null);
       }
     }
-    fetchPendingCount();
-    const interval = setInterval(fetchPendingCount, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    
+    if (user && isAdmin) {
+        fetchPendingCount();
+        const interval = setInterval(fetchPendingCount, 60000);
+        return () => clearInterval(interval);
+    }
+  }, [user, isAdmin]);
 
   useEffect(() => {
     async function checkAdminRole() {
-      if (!isLoaded || !isSignedIn) return;
+      if (loading) return;
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+      
       try {
-        const res = await fetch("/api/admin/dashboard");
+        const res = await fetchWithAuth("/api/admin/rewards"); // Using rewards as a proxy for admin check
         if (res.ok) {
           setIsAdmin(true);
         } else {
@@ -62,7 +72,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     }
     checkAdminRole();
-  }, [isLoaded, isSignedIn]);
+  }, [user, loading]);
 
   const navigation = navigationBase.map((item) => {
     if (item.name === "Submissions") {
@@ -75,11 +85,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const analyticsNav = navigation.filter(item => item.section === "ANALYTICS");
   const systemNav = navigation.filter(item => item.section === "SYSTEM");
 
-  if (isLoaded && !isSignedIn) {
-    return <RedirectToSignIn />;
+  if (!loading && !user) {
+    router.push("/sign-in");
+    return null;
   }
 
-  if (isAdmin === null) {
+  if (loading || isAdmin === null) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30">
         <div className="relative">
@@ -128,7 +139,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             : "text-gray-600 hover:bg-gray-50/80 hover:text-gray-900"
         )}
       >
-        {/* Active indicator bar */}
         {isActive && (
           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
         )}
@@ -166,7 +176,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/20">
-      {/* Premium Header */}
       <header className="fixed top-0 left-0 right-0 h-16 z-50 bg-white/70 backdrop-blur-xl border-b border-gray-200/50 shadow-sm">
         <div className="flex items-center justify-between h-full px-4 lg:px-6">
           <div className="flex items-center gap-3">
@@ -193,7 +202,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Search Bar (desktop) */}
             <div className="hidden xl:flex items-center gap-2 px-4 py-2 bg-gray-50/80 rounded-xl border border-gray-200/50 w-64 group focus-within:border-emerald-300 focus-within:bg-white transition-all duration-300">
               <Search className="h-4 w-4 text-gray-400" />
               <input
@@ -204,13 +212,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <kbd className="hidden lg:inline text-[10px] text-gray-400 bg-gray-200/60 px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
             </div>
 
-            {/* Live Status */}
             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-200/50">
               <Circle className="h-2 w-2 fill-emerald-500 text-emerald-500 animate-pulse" />
               <span className="text-xs font-medium text-emerald-700">Live</span>
             </div>
 
-            {/* Notification Bell */}
             <Button variant="ghost" size="icon" className="relative rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100">
               <Bell className="h-5 w-5" />
               {pendingCount && pendingCount > 0 && (
@@ -218,28 +224,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )}
             </Button>
 
-            {/* User Section */}
             <div className="flex items-center gap-3 pl-3 border-l border-gray-200/60">
               <div className="hidden sm:block text-right">
                 <div className="font-semibold text-sm text-gray-900 line-clamp-1 max-w-[110px]">
-                  {user?.fullName || user?.firstName || "Admin"}
+                  {user?.displayName || "Admin"}
                 </div>
                 <div className="text-[11px] text-gray-400 font-medium">Administrator</div>
               </div>
-              <UserButton
-                afterSignOutUrl="/"
-                appearance={{
-                  elements: {
-                    avatarBox: "h-9 w-9 ring-2 ring-emerald-100 ring-offset-1"
-                  }
-                }}
-              />
+              <div className="w-9 h-9 rounded-full ring-2 ring-emerald-100 ring-offset-1 overflow-hidden bg-emerald-500 flex items-center justify-center text-white font-bold">
+                {user?.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" /> : (user?.displayName || "A").charAt(0).toUpperCase()}
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Premium Sidebar */}
       <aside
         className={cn(
           "fixed top-16 left-0 bottom-0 w-[270px] bg-white/80 backdrop-blur-xl border-r border-gray-200/50 transition-all duration-500 ease-out z-40 flex flex-col",
@@ -247,7 +246,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
       >
         <nav className="flex-1 p-4 space-y-6 overflow-y-auto scrollbar-thin">
-          {/* Main Section */}
           <div>
             <h3 className="px-3 text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-2">
               Main Menu
@@ -259,7 +257,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
 
-          {/* Analytics Section */}
           <div>
             <h3 className="px-3 text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-2">
               Analytics
@@ -271,7 +268,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
 
-          {/* System Section */}
           <div>
             <h3 className="px-3 text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-2">
               System
@@ -284,16 +280,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </nav>
 
-        {/* Sidebar Footer - User Card */}
         <div className="p-4 border-t border-gray-100/80">
           <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-3 border border-emerald-100/50">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
-                {(user?.fullName || user?.firstName || "A").charAt(0).toUpperCase()}
+                {(user?.displayName || "A").charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">
-                  {user?.fullName || user?.firstName || "Admin User"}
+                  {user?.displayName || "Admin User"}
                 </p>
                 <p className="text-[11px] text-emerald-600 font-medium">System Admin</p>
               </div>
@@ -302,7 +297,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 lg:hidden transition-opacity duration-300"
@@ -310,7 +304,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         />
       )}
 
-      {/* Main content */}
       <main className="lg:ml-[270px] pt-16 min-h-screen">
         <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
           {children}

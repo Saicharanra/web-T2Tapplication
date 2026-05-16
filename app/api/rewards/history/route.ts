@@ -1,54 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = getSupabaseAdmin();
+    // Fetch redemptions for this user
+    const redemptionsSnapshot = await adminDb.collection("redemptions")
+      .where("user_id", "==", userId)
+      .get();
 
-    // Fetch redemptions with the associated reward
-    const { data: redemptions, error } = await supabase
-      .from("RewardRedemption")
-      .select(`
-        redemption_id,
-        redeemed_at,
-        Reward (
-          title
-        )
-      `)
-      .eq("user_id", userId)
-      .order("redeemed_at", { ascending: false });
+    const historyData = redemptionsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
 
-    if (error) {
-      console.error("Error fetching reward history:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch reward history" },
-        { status: 500 }
-      );
-    }
+    // Sort in memory
+    historyData.sort((a: any, b: any) => {
+      const dateA = a.redeemed_at?.toDate?.() || new Date(a.redeemed_at);
+      const dateB = b.redeemed_at?.toDate?.() || new Date(b.redeemed_at);
+      return dateB.getTime() - dateA.getTime();
+    });
 
-    // Transform mapping for the frontend state
-    const history = redemptions?.map((r) => {
-      const rewardData = (r as unknown as Record<string, unknown>).Reward as Record<string, unknown> | null;
+    const history = await Promise.all(historyData.map(async (data: any) => {
+      // Fetch reward details
+      const rewardDoc = await adminDb.collection("rewards").doc(data.reward_id).get();
+      const rewardData = rewardDoc.data();
+
       return {
-        id: r.redemption_id,
+        id: data.id,
         name: rewardData ? rewardData.title : "Unknown Reward",
-        date: new Date(r.redeemed_at).toISOString().split("T")[0],
-        code: `RWD-${String(r.redemption_id).padStart(6, '0')}`,
+        date: (data.redeemed_at?.toDate?.() || new Date(data.redeemed_at)).toISOString().split("T")[0],
+        code: data.code || `RWD-${data.id.substring(0, 6).toUpperCase()}`,
       };
-    }) || [];
+    }));
 
     return NextResponse.json({ history });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in GET /api/rewards/history:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

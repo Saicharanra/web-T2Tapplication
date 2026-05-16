@@ -1,61 +1,65 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
-// Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// GET: Fetch user's submissions
 export async function GET(req: NextRequest) {
   try {
-    // Await auth() for Next.js 15 compatibility
-    const authResult = await auth();
-    const { userId } = authResult;
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create Supabase server client
-    const supabase = await createSupabaseServerClient();
-
-    // Get query params for filtering
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get('status'); // Optional status filter
+    const status = searchParams.get('status');
+    const limitNum = parseInt(searchParams.get('limit') || "20");
 
-    // Build query
-    let query = supabase
-      .from('Submission')
-      .select(`
-        *,
-        user:User!userId(
-          name,
-          email,
-          level
-        )
-      `)
-      .eq('userId', userId)
-      .order('createdAt', { ascending: false });
+    let query: any = adminDb.collection("submissions").where("userId", "==", userId);
 
-    // Apply status filter if provided
     if (status) {
-      query = query.eq('status', status);
+      query = query.where("status", "==", status);
     }
 
-    const { data: submissions, error } = await query;
+    // Fetch all for the user and sort in memory to avoid missing index errors
+    // (Only recommended for smaller datasets per user)
+    const submissionsSnapshot = await query.get();
+    
+    // Fetch user data once
+    const userDoc = await adminDb.collection("users").doc(userId).get();
+    const userData = userDoc.exists ? userDoc.data() : null;
 
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch submissions' },
-        { status: 500 }
-      );
-    }
+    const allSubmissions = submissionsSnapshot.docs.map((doc: any) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
 
-    return NextResponse.json({ submissions }, { status: 200 });
-  } catch (error) {
+    // Sort in memory: Newest first
+    allSubmissions.sort((a: any, b: any) => {
+      const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+      const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    // Apply limit
+    const slicedSubmissions = allSubmissions.slice(0, limitNum).map((sub: any) => ({
+      ...sub,
+      createdAt: sub.createdAt?.toDate?.() || sub.createdAt,
+      user: userData ? {
+        name: userData.name,
+        email: userData.email,
+        level: userData.level
+      } : null
+    }));
+
+    return NextResponse.json({ submissions: slicedSubmissions }, { status: 200 });
+  } catch (error: any) {
     console.error("Error fetching submissions:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Failed to fetch submissions" },
       { status: 500 }
@@ -63,21 +67,14 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: Create new submission
 export async function POST(req: NextRequest) {
   try {
-    // Await auth() for Next.js 15 compatibility
-    const authResult = await auth();
-    const { userId } = authResult;
-
-    console.log('📝 Creating submission for user:', userId);
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    // Create Supabase server client
-    const supabase = await createSupabaseServerClient();
 
     const body = await req.json();
     const {
@@ -90,107 +87,91 @@ export async function POST(req: NextRequest) {
       submissionId,
     } = body;
 
-    console.log('📦 Submission payload:', {
-      submissionId,
-      userId,
-      wasteType,
-      imageUrl: imageUrl?.substring(0, 50) + '...',
-      imagePath,
-      location,
-    });
-
-    // Validate required fields
     if (!wasteType || !imageUrl || !imagePath || !location) {
-      console.error('❌ Missing required fields:', {
-        hasWasteType: !!wasteType,
-        hasImageUrl: !!imageUrl,
-        hasImagePath: !!imagePath,
-        hasLocation: !!location,
-      });
       return NextResponse.json(
-        { error: "Missing required fields", details: { wasteType: !!wasteType, imageUrl: !!imageUrl, imagePath: !!imagePath, location: !!location } },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Check if user exists in database
-    console.log('👤 Checking if user exists...');
-    const { data: userCheck, error: userError } = await supabase
-      .from('User')
-      .select('id, name, email')
-      .eq('id', userId)
-      .single();
+    let userDoc = await adminDb.collection("users").doc(userId).get();
+    let userData = userDoc.exists ? userDoc.data() : null;
 
-    if (userError || !userCheck) {
-      console.error('❌ User not found in database:', userError);
-      return NextResponse.json(
-        { 
-          error: 'User not found in database. Please sign out and sign in again, or contact admin.',
-          details: userError?.message,
-          userId: userId
-        },
-        { status: 404 }
-      );
+    if (!userDoc.exists) {
+      console.log(`👤 User ${userId} not found in database. Creating basic profile...`);
+      // Get user from Auth to get their email/name if possible
+      try {
+        const { adminAuth } = require("@/lib/firebase-admin");
+        const userAuth = await adminAuth.getUser(userId);
+        
+        userData = {
+          name: userAuth.displayName || userAuth.email?.split('@')[0] || "User",
+          email: userAuth.email || "",
+          role: "USER",
+          level: "BRONZE",
+          points: 0,
+          status: "ACTIVE",
+          joinedAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        await adminDb.collection("users").doc(userId).set(userData);
+        console.log(`✅ Basic profile created for ${userId}`);
+      } catch (authError) {
+        console.error("❌ Error fetching user from Auth or creating profile:", authError);
+        return NextResponse.json(
+          { error: "User profile not found and could not be created automatically." },
+          { status: 404 }
+        );
+      }
     }
 
-    console.log('✅ User exists:', userCheck);
+    const id = submissionId || adminDb.collection("submissions").doc().id;
 
-    // Insert submission into database
-    console.log('💾 Inserting submission into database...');
-    const { data: submission, error } = await supabase
-      .from('Submission')
-      .insert({
-        id: submissionId || crypto.randomUUID(),
-        userId,
-        wasteType,
-        imageUrl,
-        imagePath,
-        imageSize,
-        imageMimeType,
-        location,
-        status: 'PENDING',
-        pointsAwarded: 0,
-      })
-      .select(
-        `
-        *,
-        user:User!userId(
-          name,
-          email
-        )
-      `
-      )
-      .single();
+    const submissionData = {
+      id,
+      userId,
+      wasteType,
+      imageUrl,
+      imagePath,
+      imageSize: imageSize || 0,
+      imageMimeType: imageMimeType || 'image/jpeg',
+      location,
+      status: 'PENDING',
+      pointsAwarded: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-    if (error) {
-      console.error('❌ Supabase insert error:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      });
-      return NextResponse.json(
-        { 
-          error: 'Failed to create submission',
-          message: error.message,
-          code: error.code,
-          hint: error.hint,
-        },
-        { status: 500 }
-      );
+    console.log(`📝 Storing submission ${id} for user ${userId}`);
+    await adminDb.collection("submissions").doc(id).set(submissionData);
+
+    const submissionWithUser = {
+      ...submissionData,
+      user: {
+        name: userData?.name,
+        email: userData?.email
+      }
+    };
+
+    return NextResponse.json({ submission: submissionWithUser }, { status: 201 });
+  } catch (error: any) {
+    console.error("❌ Error creating submission:", error);
+    
+    // Provide more specific error info
+    const errorMessage = error.message || "Failed to create submission";
+    const status = error.code === 'permission-denied' ? 403 : 500;
+
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    console.log('✅ Submission created successfully:', submission.id);
-    return NextResponse.json({ submission }, { status: 201 });
-  } catch (error) {
-    console.error("❌ Unexpected error creating submission:", error);
+    
     return NextResponse.json(
       { 
         error: "Failed to create submission",
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
+        details: errorMessage
       },
-      { status: 500 }
+      { status }
     );
   }
 }

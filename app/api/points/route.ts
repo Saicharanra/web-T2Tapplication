@@ -1,58 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
-// Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET(_req: NextRequest) {  // Keep underscore prefix to indicate intentionally unused
+export async function GET(req: NextRequest) {
   try {
-    // Await auth() for Next.js 15 compatibility
-    const authResult = await auth();
-    const { userId } = authResult;
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create Supabase client
-    const supabase = await createSupabaseServerClient();
-
-    // Fetch total points
-    const { data: pointsHistory, error: pointsError } = await supabase
-      .from('PointsHistory')
-      .select('points');
-
-    if (pointsError) {
-      throw new Error(`Failed to fetch points history: ${pointsError.message}`);
-    }
-
-    const totalPoints = pointsHistory.reduce((sum, record) => sum + record.points, 0);
+    // Fetch total points for the user
+    const pointsHistorySnapshot = await adminDb.collection("pointsHistory")
+      .where("userId", "==", userId)
+      .get();
+    
+    const pointsHistory = pointsHistorySnapshot.docs.map(doc => doc.data());
+    const totalPoints = pointsHistory.reduce((sum, record) => sum + (record.points || 0), 0);
 
     // Calculate average points
     const avgPoints = pointsHistory.length > 0 ? totalPoints / pointsHistory.length : 0;
 
-    // Find top earner
-    const { data: users, error: usersError } = await supabase
-      .from('User')
-      .select('name, points')
-      .order('points', { ascending: false })
-      .limit(1);
-
-    if (usersError) {
-      throw new Error(`Failed to fetch users: ${usersError.message}`);
-    }
-
-    const topEarner = users && users.length > 0 ? users[0] : null;
+    // Find top earner globally
+    const topEarnerSnapshot = await adminDb.collection("users")
+      .orderBy("points", "desc")
+      .limit(1)
+      .get();
+    
+    const topEarner = !topEarnerSnapshot.empty ? {
+        name: topEarnerSnapshot.docs[0].data().name,
+        points: topEarnerSnapshot.docs[0].data().points
+    } : null;
 
     return NextResponse.json({
       totalPoints: totalPoints || 0,
       avgPoints: Math.round(avgPoints || 0),
       topEarner,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching points stats:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Failed to fetch points statistics" },
       { status: 500 }

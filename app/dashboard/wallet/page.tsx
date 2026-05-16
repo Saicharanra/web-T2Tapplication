@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,6 @@ import Link from "next/link";
 import { Wallet as WalletIcon, TrendingUp, Download, Gift, ArrowUpRight, Recycle, RefreshCw, Trophy, BookOpen, ChevronRight } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { usePoints } from "../context/PointsContext";
-//import { useUser } from "@clerk/nextjs";
 import CountUp from "react-countup";
 
 interface PointsHistory {
@@ -57,7 +57,7 @@ export default function WalletPage() {
     try {
       console.log('💰 Fetching wallet data...');
 
-      const response = await fetch('/api/wallet');
+      const response = await fetchWithAuth('/api/wallet');
 
       if (!response.ok) {
         throw new Error('Failed to fetch wallet data');

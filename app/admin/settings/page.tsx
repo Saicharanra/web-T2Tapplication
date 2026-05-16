@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,14 +25,33 @@ export default function SettingsPage() {
   const [adminEmail, setAdminEmail] = useState("admin@t2t-telangana.org");
   const [saving, setSaving] = useState(false);
 
-  const [pointsConfig, setPointsConfig] = useState<PointsConfig>({
-    plasticBottles: 25,
-    aluminumCans: 35,
-    paperWaste: 15,
-    electronicWaste: 50,
-    glassItems: 30,
-    textileWaste: 20,
+  const [pointsConfig, setPointsConfig] = useState<Record<string, number>>({
+    "Plastic Bottles": 15,
+    "Paper Waste": 10,
+    "Metal Cans": 25,
+    "Glass Bottles": 20,
+    "Cardboard": 12,
+    "E-Waste": 50,
+    "Organic Waste": 18,
+    "Mixed Recyclables": 8
   });
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetchWithAuth('/api/admin/settings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.pointsConfig) {
+            setPointsConfig(data.pointsConfig);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch settings:", error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const [notifications, setNotifications] = useState({
     newSubmission: true,
@@ -43,9 +63,21 @@ export default function SettingsPage() {
   });
 
   const handleSave = async () => {
-    setSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setSaving(false);
+    try {
+      setSaving(true);
+      const response = await fetchWithAuth('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pointsConfig }),
+      });
+
+      if (!response.ok) throw new Error("Failed to save settings");
+
+      setSaving(false);
+    } catch (error) {
+      console.error(error);
+      setSaving(false);
+    }
   };
 
   const Toggle = ({ enabled, onChange, label, description }: { enabled: boolean; onChange: () => void; label: string; description: string }) => (
@@ -77,13 +109,15 @@ export default function SettingsPage() {
     </div>
   );
 
-  const wasteTypes: { key: keyof PointsConfig; label: string; emoji: string }[] = [
-    { key: 'plasticBottles', label: 'Plastic Bottles', emoji: '🧴' },
-    { key: 'aluminumCans', label: 'Aluminum Cans', emoji: '🥫' },
-    { key: 'paperWaste', label: 'Paper Waste', emoji: '📄' },
-    { key: 'electronicWaste', label: 'E-Waste', emoji: '💻' },
-    { key: 'glassItems', label: 'Glass Items', emoji: '🫙' },
-    { key: 'textileWaste', label: 'Textile Waste', emoji: '👕' },
+  const wasteTypes: { key: string; label: string; emoji: string }[] = [
+    { key: 'Plastic Bottles', label: 'Plastic Bottles', emoji: '🧴' },
+    { key: 'Metal Cans', label: 'Metal Cans', emoji: '🥫' },
+    { key: 'Paper Waste', label: 'Paper Waste', emoji: '📄' },
+    { key: 'E-Waste', label: 'E-Waste', emoji: '💻' },
+    { key: 'Glass Bottles', label: 'Glass Bottles', emoji: '🫙' },
+    { key: 'Cardboard', label: 'Cardboard', emoji: '📦' },
+    { key: 'Organic Waste', label: 'Organic Waste', emoji: '🥬' },
+    { key: 'Mixed Recyclables', label: 'Mixed', emoji: '♻️' },
   ];
 
   return (

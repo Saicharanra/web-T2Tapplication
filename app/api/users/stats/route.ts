@@ -1,69 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
-// Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-/**
- * GET: Fetch user statistics
- * Returns: totalPoints, level, totalSubmissions, streak
- */
-export async function GET(_req: NextRequest) {  // Keep underscore prefix to indicate intentionally unused
+export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create Supabase server client
-    const supabase = await createSupabaseServerClient();
-
     // Get user data
-    const { data: user, error: userError } = await supabase
-      .from('User')
-      .select('points, level')
-      .eq('id', userId)
-      .single();
-
-    if (userError) {
-      console.error('User fetch error:', userError);
-      return NextResponse.json(
-        { error: 'Failed to fetch user data' },
-        { status: 500 }
-      );
-    }
+    const userDoc = await adminDb.collection("users").doc(userId).get();
+    const userData = userDoc.exists ? userDoc.data() : null;
 
     // Get total submissions count
-    const { count: totalSubmissions, error: countError } = await supabase
-      .from('Submission')
-      .select('*', { count: 'exact', head: true })
-      .eq('userId', userId);
-
-    if (countError) {
-      console.error('Submissions count error:', countError);
+    let totalSubmissions = 0;
+    try {
+      const submissionsSnapshot = await adminDb.collection("submissions")
+        .where("userId", "==", userId)
+        .count()
+        .get();
+      totalSubmissions = submissionsSnapshot.data().count;
+    } catch (e) {
+      console.warn("⚠️ Could not count submissions:", e);
     }
 
-    // Calculate streak (simplified - count submissions in last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Calculate streak (count submissions in last 7 days)
+    let streak = 0;
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const { count: recentCount } = await supabase
-      .from('Submission')
-      .select('*', { count: 'exact', head: true })
-      .eq('userId', userId)
-      .gte('createdAt', sevenDaysAgo.toISOString());
+      const recentSubmissionsSnapshot = await adminDb.collection("submissions")
+        .where("userId", "==", userId)
+        .where("createdAt", ">=", sevenDaysAgo)
+        .count()
+        .get();
+      streak = recentSubmissionsSnapshot.data().count;
+    } catch (e) {
+      console.warn("⚠️ Could not calculate streak (index might be missing):", e);
+      // Fallback: just use 0 or fetch all and filter in memory if small
+    }
 
     return NextResponse.json({
-      totalPoints: user?.points || 0,
-      level: user?.level || 'BRONZE',
+      totalPoints: Number(userData?.points) || 0,
+      level: userData?.level || 'BRONZE',
       totalSubmissions: totalSubmissions || 0,
-      streak: recentCount || 0,
+      streak: streak || 0,
     }, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching user stats:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Failed to fetch statistics" },
       { status: 500 }

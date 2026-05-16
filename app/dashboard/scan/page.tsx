@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Trophy, TrendingUp, Calendar, Award, Flame, Recycle, X, Camera, MapPin, ChevronDown } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { usePoints } from "../context/PointsContext";
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/AuthProvider";
 import CountUp from "react-countup";
 
 // Only define types, not interfaces (for better compatibility in TS/Next builds)
@@ -45,7 +46,7 @@ const wasteTypes: string[] = [
   "Mixed Recyclables",
 ];
 
-const pointsGuide = [
+const DEFAULT_POINTS_GUIDE = [
   { category: "Plastic Bottles", points: 15, reason: "Highly recyclable but very common", color: "bg-blue-400" },
   { category: "Paper Waste", points: 10, reason: "Easy to recycle but low processing cost", color: "bg-yellow-400" },
   { category: "Metal Cans", points: 25, reason: "High recycling value", color: "bg-gray-400" },
@@ -59,15 +60,15 @@ const pointsGuide = [
 const streakBonuses = [
   { days: "5 Days", bonus: 20, emoji: "🔥" },
   { days: "10 Days", bonus: 50, emoji: "⚡" },
-  { days: "15 Days", bonus: 120, emoji: "🌟" },
-  { days: "30 Days", bonus: 300, emoji: "👑" },
+  { days: "15 Days", bonus: 100, emoji: "🌟" },
+  { days: "30 Days", bonus: 150, emoji: "👑" },
 ];
 
 // ==== Camera Only Section Below ====
 
 export default function UserDashboard() {
   const { toast } = useToast();
-  const { user } = useUser();
+  const { user } = useAuth();
   // Defensive: Check if usePoints returns a valid object
   const pointsContext = usePoints();
   const refreshPoints = pointsContext ? pointsContext.refreshPoints : undefined;
@@ -81,6 +82,7 @@ export default function UserDashboard() {
     totalSubmissions: 0,
     streak: 0,
   });
+  const [pointsGuide, setPointsGuide] = useState(DEFAULT_POINTS_GUIDE);
 
   // Form state
   const [wasteImage, setWasteImage] = useState<string | null>(null);
@@ -96,14 +98,17 @@ export default function UserDashboard() {
   const [stream, setStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
-    fetchSubmissions();
-    fetchUserStats();
-    getLocation();
+    if (user) {
+      fetchSubmissions();
+      fetchUserStats();
+      fetchPointsConfig();
+      getLocation();
+    }
     return () => {
       stopCamera();
     };
     // eslint-disable-next-line
-  }, []);
+  }, [user]);
 
   const getLocation = () => {
     setLocationLoading(true);
@@ -176,9 +181,28 @@ export default function UserDashboard() {
     }
   };
 
+  const fetchPointsConfig = async () => {
+    try {
+      // Use the public settings API to get current points
+      const response = await fetch('/api/settings/points');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.pointsConfig) {
+          const updatedGuide = DEFAULT_POINTS_GUIDE.map(item => ({
+            ...item,
+            points: data.pointsConfig[item.category] || item.points
+          }));
+          setPointsGuide(updatedGuide);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch points config:", error);
+    }
+  };
+
   const fetchSubmissions = async () => {
     try {
-      const response = await fetch('/api/submissions');
+      const response = await fetchWithAuth('/api/submissions');
       if (response.ok) {
         const data = await response.json();
         setSubmissions(Array.isArray(data.submissions) ? data.submissions : []);
@@ -194,7 +218,7 @@ export default function UserDashboard() {
 
   const fetchUserStats = async () => {
     try {
-      const response = await fetch('/api/users/stats');
+      const response = await fetchWithAuth('/api/users/stats');
       if (response.ok) {
         const data = await response.json();
         setUserStats({
@@ -331,7 +355,7 @@ export default function UserDashboard() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const uploadResponse = await fetch('/api/upload', {
+      const uploadResponse = await fetchWithAuth('/api/upload', {
         method: 'POST',
         body: formData,
       });
@@ -361,7 +385,7 @@ export default function UserDashboard() {
         submissionId: uploadData.submissionId,
       };
 
-      const submissionResponse = await fetch('/api/submissions', {
+      const submissionResponse = await fetchWithAuth('/api/submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(submissionPayload),
@@ -424,7 +448,7 @@ export default function UserDashboard() {
     <div className="space-y-6">
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-green-600 to-blue-600 rounded-2xl p-6 md:p-8 text-white shadow-lg">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Welcome back, {user && typeof user.firstName === "string" ? user.firstName : 'User'}! 👋</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Welcome back, {user && typeof user.displayName === "string" ? user.displayName.split(' ')[0] : 'User'}! 👋</h1>
         <p className="text-white/90">Keep up the great work! You&apos;re making a real difference.</p>
       </div>
       {/* Stats Grid */}

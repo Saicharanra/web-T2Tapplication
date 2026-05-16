@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,100 +9,45 @@ export const runtime = "nodejs";
  */
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = getSupabaseAdmin();
-
     // Verify admin
-    const { data: adminUser, error: adminError } = await supabase
-      .from("User")
-      .select("role")
-      .eq("id", userId)
-      .single();
-
-    if (adminError || !adminUser || adminUser.role !== "ADMIN") {
+    const adminUserDoc = await adminDb.collection("users").doc(userId).get();
+    if (!adminUserDoc.exists || adminUserDoc.data()?.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const limitNum = parseInt(searchParams.get("limit") || "20");
 
-    // Fetch redemptions with reward and user info via joins
-    const { data: redemptions, error } = await supabase
-      .from("RewardRedemption")
-      .select(`
-        redemption_id,
-        redeemed_at,
-        reward_id,
-        user_id,
-        Reward (
-          title,
-          points_required,
-          image_url
-        ),
-        User:user_id (
-          name,
-          email,
-          imageUrl
-        )
-      `)
-      .order("redeemed_at", { ascending: false })
-      .limit(limit);
+    // Fetch redemptions
+    const redemptionsSnapshot = await adminDb.collection("redemptions")
+      .orderBy("redeemed_at", "desc")
+      .limit(limitNum)
+      .get();
 
-    if (error) {
-      console.error("Error fetching redemptions:", error);
-
-      // Fallback: fetch without joins if the join syntax fails
-      const { data: fallbackRedemptions, error: fallbackError } = await supabase
-        .from("RewardRedemption")
-        .select("*")
-        .order("redeemed_at", { ascending: false })
-        .limit(limit);
-
-      if (fallbackError) {
-        return NextResponse.json(
-          { error: "Failed to fetch redemptions", details: fallbackError.message },
-          { status: 500 }
-        );
-      }
-
-      // Manually join data
-      const rewardIds = [...new Set(fallbackRedemptions?.map((r) => r.reward_id) || [])];
-      const userIds = [...new Set(fallbackRedemptions?.map((r) => r.user_id) || [])];
-
-      const [rewardsResult, usersResult] = await Promise.all([
-        rewardIds.length > 0
-          ? supabase.from("Reward").select("reward_id, title, points_required, image_url").in("reward_id", rewardIds)
-          : { data: [], error: null },
-        userIds.length > 0
-          ? supabase.from("User").select("id, name, email, \"imageUrl\"").in("id", userIds)
-          : { data: [], error: null },
+    const enrichedRedemptions = await Promise.all(redemptionsSnapshot.docs.map(async (doc) => {
+      const data = doc.data();
+      
+      // Fetch reward and user info
+      const [rewardDoc, userDoc] = await Promise.all([
+        adminDb.collection("rewards").doc(data.reward_id).get(),
+        adminDb.collection("users").doc(data.user_id).get()
       ]);
 
-      const rewardMap = new Map(rewardsResult.data?.map((r) => [r.reward_id, r]) || []);
-      const userMap = new Map(usersResult.data?.map((u) => [u.id, u]) || []);
+      const rewardData = rewardDoc.data();
+      const userData = userDoc.data();
 
-      const enrichedRedemptions = fallbackRedemptions?.map((r) => ({
-        ...r,
-        reward: rewardMap.get(r.reward_id) || null,
-        user: userMap.get(r.user_id) || null,
-      })) || [];
-
-      return NextResponse.json({ redemptions: enrichedRedemptions });
-    }
-
-    // Transform joined data
-    const transformedRedemptions = redemptions?.map((r) => {
-      const rewardData = (r as unknown as Record<string, unknown>).Reward as Record<string, unknown> | null;
-      const userData = (r as unknown as Record<string, unknown>).User as Record<string, unknown> | null;
       return {
-        redemption_id: r.redemption_id,
-        reward_id: r.reward_id,
-        user_id: r.user_id,
-        redeemed_at: r.redeemed_at,
+        redemption_id: doc.id,
+        reward_id: data.reward_id,
+        user_id: data.user_id,
+        redeemed_at: data.redeemed_at?.toDate?.() || data.redeemed_at,
         reward: rewardData ? {
           title: rewardData.title,
           points_required: rewardData.points_required,
@@ -115,13 +59,16 @@ export async function GET(req: NextRequest) {
           imageUrl: userData.imageUrl,
         } : null,
       };
-    }) || [];
+    }));
 
-    return NextResponse.json({ redemptions: transformedRedemptions });
-  } catch (error) {
+    return NextResponse.json({ redemptions: enrichedRedemptions });
+  } catch (error: any) {
     console.error("Error in GET /api/admin/rewards/redemptions:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
-      { error: "Internal server error", message: error instanceof Error ? error.message : "Unknown error" },
+      { error: "Internal server error", message: error.message },
       { status: 500 }
     );
   }

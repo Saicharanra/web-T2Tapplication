@@ -1,4 +1,5 @@
 "use client";
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
@@ -20,7 +21,7 @@ import {
 /* ──────────────── Types ──────────────── */
 
 interface Reward {
-  reward_id: number;
+  reward_id: string;
   title: string;
   description: string;
   points_required: number;
@@ -62,7 +63,7 @@ export default function RewardPage() {
   const [isCelebrating, setIsCelebrating] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
 
-  const [history, setHistory] = useState<{ id: number; name: string; date: string; code: string }[]>([]);
+  const [history, setHistory] = useState<{ id: string; name: string; date: string; code: string }[]>([]);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
 
   /* ──────────── Fetch Rewards from API ──────────── */
@@ -70,7 +71,7 @@ export default function RewardPage() {
   const fetchRewards = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch("/api/rewards");
+      const res = await fetchWithAuth("/api/rewards");
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to fetch rewards");
@@ -86,7 +87,7 @@ export default function RewardPage() {
 
   const fetchHistory = useCallback(async () => {
     try {
-      const res = await fetch("/api/rewards/history");
+      const res = await fetchWithAuth("/api/rewards/history");
       if (res.ok) {
         const data = await res.json();
         setHistory(data.history || []);
@@ -125,7 +126,7 @@ export default function RewardPage() {
     setIsRedeeming(true);
 
     try {
-      const res = await fetch("/api/rewards", {
+      const res = await fetchWithAuth("/api/rewards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reward_id: reward.reward_id }),

@@ -1,33 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { createSupabaseServerClient } from "@/lib/supabase";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const decodedToken = await verifySession(req);
+    const userId = decodedToken.uid;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Create Supabase client
-    const supabase = await createSupabaseServerClient();
-
     // Check if user is admin
-    const { data: user, error: userError } = await supabase
-      .from("User")
-      .select("role")
-      .eq("id", userId)
-      .single();
+    const userDoc = await adminDb.collection("users").doc(userId).get();
+    const user = userDoc.data();
 
-    if (userError) {
-      return NextResponse.json(
-        { error: "User not found in database", details: userError.message },
-        { status: 404 }
-      );
+    if (!userDoc.exists) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     if (user?.role !== "ADMIN") {
@@ -42,27 +33,21 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
 
     // Build query
-    let query = supabase
-      .from("Submission")
-      .select("*", { count: "exact", head: true });
+    let query: any = adminDb.collection("submissions");
 
     if (status) {
-      query = query.eq("status", status);
+      query = query.where("status", "==", status);
     }
 
-    const { count, error } = await query;
-
-    if (error) {
-      console.error("❌ Supabase count error:", error);
-      return NextResponse.json(
-        { error: "Failed to count submissions", details: error.message },
-        { status: 500 }
-      );
-    }
+    const snapshot = await query.count().get();
+    const count = snapshot.data().count;
 
     return NextResponse.json({ count: count || 0 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("💥 Server Error:", error);
+    if (error.message.startsWith('Unauthorized')) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.json(
       { error: "Failed to count submissions" },
       { status: 500 }

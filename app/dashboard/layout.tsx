@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { UserButton } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { PointsProvider, usePoints } from "./context/PointsContext";
 
 
@@ -28,6 +28,7 @@ const navigation = [
 
 function DashboardHeader() {
   const { points, pointsLoading, refreshPoints } = usePoints();
+  const { user } = useAuth();
   const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -113,18 +114,15 @@ function DashboardHeader() {
               </svg>
             </Button>
           </div>
-          <div className="p-0.5 rounded-full bg-gradient-to-tr from-green-400 to-blue-500 shadow-lg flex items-center justify-center transition-transform hover:scale-105 pointer-events-auto">
-            <div className="bg-white dark:bg-[#0B1527] rounded-full p-0.5 flex items-center justify-center h-[34px] w-[34px] sm:h-[40px] sm:w-[40px]">
-              <UserButton
-                afterSignOutUrl="/"
-                appearance={{
-                  elements: {
-                    avatarBox: "h-8 w-8 sm:h-9 sm:w-9 rounded-full",
-                  },
-                }}
-              />
+          <Link href="/dashboard/profile" className="p-0.5 rounded-full bg-gradient-to-tr from-green-400 to-blue-500 shadow-lg flex items-center justify-center transition-transform hover:scale-105 pointer-events-auto">
+            <div className="bg-white dark:bg-[#0B1527] rounded-full p-0.5 flex items-center justify-center h-[34px] w-[34px] sm:h-[40px] sm:w-[40px] overflow-hidden">
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt="Profile" className="h-full w-full object-cover" />
+              ) : (
+                <User className="h-5 w-5 text-gray-500" />
+              )}
             </div>
-          </div>
+          </Link>
         </div>
       </header>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import { Clock, Check, X, Coins, Users as UsersIcon, RefreshCw, ArrowUp, ArrowDown, Sparkles, TrendingUp, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -63,7 +64,7 @@ export default function AdminDashboard() {
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/dashboard');
+      const res = await fetchWithAuth('/api/admin/dashboard');
       if (res.ok) {
         const data = await res.json();
         const newStats = data.stats || {

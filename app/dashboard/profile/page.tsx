@@ -1,15 +1,36 @@
 "use client";
-
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Mail, Award, Calendar, Trophy, LogOut, Recycle } from "lucide-react";
-import { useUser, useClerk } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/AuthProvider";
+import { signOut as firebaseSignOut } from "firebase/auth";
+import { auth } from "@/lib/firebase-client";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { usePoints } from "../context/PointsContext";
 import { MyEcoTree } from "@/components/MyEcoTree";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
+import { Eye, MapPin } from "lucide-react";
+
+interface Submission {
+  id: string;
+  wasteType: string;
+  status: string;
+  imageUrl: string;
+  pointsAwarded: number;
+  createdAt: string;
+  location: string;
+}
 
 interface UserData {
   id: string;
@@ -36,8 +57,7 @@ interface UserStats {
 }
 
 export default function ProfilePage() {
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const { points: globalPoints } = usePoints();
@@ -45,27 +65,31 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [recentSubmissions, setRecentSubmissions] = useState<Submission[]>([]);
+  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  const [submissionsLoading, setSubmissionsLoading] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (user) {
       fetchUserData();
       fetchUserStats();
+      fetchRecentSubmissions();
     }
   }, [user]);
 
   const fetchUserData = async () => {
     try {
-      const response = await fetch('/api/users/profile');
+      const response = await fetchWithAuth('/api/users/profile');
       if (response.ok) {
         const data = await response.json();
         setUserData(data);
       } else {
         console.warn('Backend API unavailable. Mocking user data.');
         setUserData({
-          id: user?.id || "mock-id",
-          name: user?.fullName || user?.firstName || "Eco Warrior",
-          email: user?.primaryEmailAddress?.emailAddress || "",
+          id: user?.uid || "mock-id",
+          name: user?.displayName || "Eco Warrior",
+          email: user?.email || "",
           role: "USER",
           level: "BRONZE",
           points: 300,
@@ -78,9 +102,24 @@ export default function ProfilePage() {
     }
   };
 
+  const fetchRecentSubmissions = async () => {
+    try {
+      setSubmissionsLoading(true);
+      const response = await fetchWithAuth('/api/submissions?limit=5');
+      if (response.ok) {
+        const data = await response.json();
+        setRecentSubmissions(data.submissions || []);
+      }
+    } catch (error) {
+      console.error('Error fetching recent submissions:', error);
+    } finally {
+      setSubmissionsLoading(false);
+    }
+  };
+
   const fetchUserStats = async () => {
     try {
-      const response = await fetch('/api/users/profile/stats');
+      const response = await fetchWithAuth('/api/users/profile/stats');
       if (response.ok) {
         const data = await response.json();
         setUserStats(data);
@@ -114,7 +153,7 @@ export default function ProfilePage() {
       // Also fetch rank directly from leaderboard API for source-of-truth 
       // This ensures profile rank perfectly matches leaderboard page
       try {
-        const lbResponse = await fetch('/api/leaderboard');
+        const lbResponse = await fetchWithAuth('/api/leaderboard');
         if (lbResponse.ok) {
           const lbData = await lbResponse.json();
           // Set to the fetched rank if present, otherwise calculate fallback
@@ -144,7 +183,7 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     try {
       setSigningOut(true);
-      await signOut();
+      await firebaseSignOut(auth);
       toast({
         title: "👋 Logged Out",
         description: "You have been successfully logged out.",
@@ -224,23 +263,23 @@ export default function ProfilePage() {
         <CardContent className="p-6 md:p-8 relative z-10 text-white">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 flex-wrap text-center sm:text-left">
             <div className="h-24 w-24 md:h-28 md:w-28 rounded-full flex items-center justify-center border-4 border-white/60 shadow-xl overflow-hidden shrink-0 bg-white/20 mx-auto sm:mx-0">
-              {user?.imageUrl ? (
-                <img src={user.imageUrl} alt={user?.fullName || "User"} className="h-full w-full object-cover" />
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt={user?.displayName || "User"} className="h-full w-full object-cover" />
               ) : (
                 <div className="text-4xl font-bold">
-                  {userData?.name ? getInitials(userData.name) : user?.firstName?.[0] || 'U'}
+                  {userData?.name ? getInitials(userData.name) : user?.displayName?.[0] || 'U'}
                 </div>
               )}
             </div>
             <div className="flex-1">
               <h2 className="text-3xl md:text-4xl font-bold mb-2 drop-shadow-md">
-                {userData?.name || user?.fullName || user?.firstName || 'Eco Warrior'}
+                {userData?.name || user?.displayName || 'Eco Warrior'}
               </h2>
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4 flex-wrap justify-center sm:justify-start">
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4" />
                   <span className="text-white/90 text-sm sm:text-base break-all">
-                    {userData?.email || user?.primaryEmailAddress?.emailAddress || 'No email'}
+                    {userData?.email || user?.email || 'No email'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -395,6 +434,165 @@ export default function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Recent Submissions */}
+      <Card className="bg-white/60 backdrop-blur-md border border-white/50 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-green-600" />
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Recycle className="h-5 w-5" />
+            Recent Submissions
+          </CardTitle>
+          <Link href="/dashboard/wallet">
+            <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700 hover:bg-green-50">
+              View All History
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {submissionsLoading ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Recycle className="h-8 w-8 animate-spin text-green-600 mb-2" />
+              <p className="text-gray-500 text-sm">Loading your activity...</p>
+            </div>
+          ) : recentSubmissions.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-5xl mb-4">♻️</div>
+              <p className="text-gray-900 font-semibold text-lg">No submissions yet</p>
+              <p className="text-gray-500 max-w-xs mx-auto mt-2">Start your eco-journey by uploading your first recycling proof!</p>
+              <Link href="/dashboard/scan">
+                <Button className="mt-6 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-full px-8">
+                  Get Started
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {recentSubmissions.map((sub) => (
+                <div 
+                  key={sub.id} 
+                  onClick={() => setSelectedSubmission(sub)}
+                  className="flex items-center gap-4 p-4 rounded-2xl bg-white/50 border border-white shadow-sm hover:shadow-md transition-all group cursor-pointer"
+                >
+                  <div className="h-16 w-16 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-gray-100 relative">
+                    <img 
+                      src={sub.imageUrl} 
+                      alt={sub.wasteType} 
+                      className="h-full w-full object-cover transition-transform group-hover:scale-110 duration-500"
+                    />
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Eye className="text-white h-5 w-5" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="font-bold text-gray-900 truncate pr-2">
+                        {sub.wasteType}
+                      </h4>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        sub.status === 'VERIFIED' ? 'bg-green-100 text-green-700' :
+                        sub.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {sub.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-500 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(sub.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {sub.status === 'VERIFIED' && (
+                          <p className="text-xs font-bold text-green-600 mr-2">
+                            +{sub.pointsAwarded} pts
+                          </p>
+                        )}
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-7 px-3 text-[10px] border-green-200 text-green-700 hover:bg-green-50 rounded-full"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedSubmission(sub);
+                          }}
+                        >
+                          View Photo
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Submission Photo Modal */}
+      <Dialog open={!!selectedSubmission} onOpenChange={(open) => !open && setSelectedSubmission(null)}>
+        <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-xl border-white/50 p-0 overflow-hidden rounded-[2rem] shadow-2xl">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Submission Photo Preview</DialogTitle>
+          </DialogHeader>
+          {selectedSubmission && (
+            <div className="flex flex-col">
+              <div className="relative aspect-video w-full bg-gray-100">
+                <img 
+                  src={selectedSubmission.imageUrl} 
+                  alt={selectedSubmission.wasteType}
+                  className="w-full h-full object-contain"
+                />
+                <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold shadow-lg ${
+                  selectedSubmission.status === 'VERIFIED' ? 'bg-green-500 text-white' :
+                  selectedSubmission.status === 'REJECTED' ? 'bg-red-500 text-white' :
+                  'bg-yellow-500 text-white'
+                }`}>
+                  {selectedSubmission.status}
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-1">{selectedSubmission.wasteType}</h3>
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        {new Date(selectedSubmission.createdAt).toLocaleDateString('en-US', { 
+                          month: 'long', 
+                          day: 'numeric', 
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-4 w-4" />
+                        {selectedSubmission.location}
+                      </span>
+                    </div>
+                  </div>
+                  {selectedSubmission.status === 'VERIFIED' && (
+                    <div className="bg-green-50 px-4 py-2 rounded-2xl border border-green-100 text-center">
+                      <span className="block text-[10px] text-green-600 font-bold uppercase tracking-wider">Points Awarded</span>
+                      <span className="text-2xl font-black text-green-700">+{selectedSubmission.pointsAwarded}</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="pt-4 border-t border-gray-100 flex justify-end">
+                  <Button 
+                    onClick={() => setSelectedSubmission(null)}
+                    className="bg-gray-900 hover:bg-black text-white rounded-xl px-8"
+                  >
+                    Close Preview
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Contact Us */}
       <Card className="bg-white/60 backdrop-blur-md border border-white/50 shadow-sm relative overflow-hidden hover:shadow-lg hover:scale-[1.02] transition-all duration-300">
