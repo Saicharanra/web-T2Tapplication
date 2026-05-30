@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Menu, X, Leaf, BarChart3, Images, Users, TrendingUp,
   Coins, Settings, Circle, Loader2, Gift, ChevronRight,
-  Bell, Search, LogOut
+  Bell, Search, LogOut, Cpu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ const navigationBase = [
   { name: "Users", href: "/admin/users", icon: Users, section: "MAIN", description: "User management" },
   { name: "Reports", href: "/admin/reports", icon: TrendingUp, section: "ANALYTICS", description: "Progress analytics" },
   { name: "Points History", href: "/admin/points", icon: Coins, section: "ANALYTICS", description: "Point transactions" },
+  { name: "ML Model Tuning", href: "/admin/model-tuning", icon: Cpu, section: "SYSTEM", description: "Fine-tune & monitor MobileNet" },
   { name: "Settings", href: "/admin/settings", icon: Settings, section: "SYSTEM", description: "System configuration" },
 ];
 
