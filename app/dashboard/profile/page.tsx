@@ -90,6 +90,37 @@ export default function ProfilePage() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!userStats) return;
+    const badges = [
+      { id: "first_upload", name: "First Upload", emoji: "🎯", earned: (userStats?.totalSubmissions || 0) >= 1 },
+      { id: "eco_warrior", name: "Eco Warrior", emoji: "🌱", earned: globalPoints >= 500 },
+      { id: "100_points", name: "100 Points", emoji: "💯", earned: globalPoints >= 100 },
+      { id: "weekly_streak", name: "Weekly Streak", emoji: "🔥", earned: (userStats?.streak || 0) >= 7 },
+      { id: "top_10", name: "Top 10", emoji: "🏆", earned: !!(userStats?.rank && userStats.rank <= 10 && userStats.rank > 0) },
+      { id: "recycling_pro", name: "Recycling Pro", emoji: "♻️", earned: (userStats?.verifiedSubmissions || 0) >= 10 },
+    ];
+    const currentEarnedIds = badges.filter(b => b.earned).map(b => b.id);
+    const storedEarned = localStorage.getItem('earned_badges');
+    const previousEarned = storedEarned ? JSON.parse(storedEarned) : null;
+
+    if (previousEarned !== null) {
+      const newlyEarned = currentEarnedIds.filter(id => !previousEarned.includes(id));
+      if (newlyEarned.length > 0) {
+        newlyEarned.forEach(id => {
+          const badge = badges.find(b => b.id === id);
+          toast({
+            title: `Badge Unlocked! ${badge?.emoji}`,
+            description: `Congratulations! You've earned the "${badge?.name}" badge.`,
+          });
+        });
+        localStorage.setItem('earned_badges', JSON.stringify([...previousEarned, ...newlyEarned]));
+      }
+    } else if (currentEarnedIds.length > 0) {
+      localStorage.setItem('earned_badges', JSON.stringify(currentEarnedIds));
+    }
+  }, [userStats, globalPoints, toast]);
+
   const fetchUserData = async () => {
     try {
       const response = await fetchWithAuth('/api/users/profile');
@@ -427,7 +458,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  <span className="text-white/90 text-sm sm:text-base">
+                  <span className="text-white/90 text-sm sm:text-base" suppressHydrationWarning={true}>
                     Joined {userData?.createdAt ? new Date(userData.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recently'}
                   </span>
                 </div>
@@ -639,57 +670,28 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {(() => {
-              const badges = [
-                { id: "first_upload", name: "First Upload", emoji: "🎯", earned: (userStats?.totalSubmissions || 0) >= 1 },
-                { id: "eco_warrior", name: "Eco Warrior", emoji: "🌱", earned: globalPoints >= 500 },
-                { id: "100_points", name: "100 Points", emoji: "💯", earned: globalPoints >= 100 },
-                { id: "weekly_streak", name: "Weekly Streak", emoji: "🔥", earned: (userStats?.streak || 0) >= 7 },
-                { id: "top_10", name: "Top 10", emoji: "🏆", earned: !!(userStats?.rank && userStats.rank <= 10 && userStats.rank > 0) },
-                { id: "recycling_pro", name: "Recycling Pro", emoji: "♻️", earned: (userStats?.verifiedSubmissions || 0) >= 10 },
-              ];
-
-              if (typeof window !== 'undefined' && userStats) {
-                const currentEarnedIds = badges.filter(b => b.earned).map(b => b.id);
-                const storedEarned = localStorage.getItem('earned_badges');
-                const previousEarned = storedEarned ? JSON.parse(storedEarned) : null;
-
-                if (previousEarned !== null) {
-                  const newlyEarned = currentEarnedIds.filter(id => !previousEarned.includes(id));
-                  if (newlyEarned.length > 0) {
-                    // Slight delay to avoid React render warning during toast
-                    setTimeout(() => {
-                      newlyEarned.forEach(id => {
-                        const badge = badges.find(b => b.id === id);
-                        toast({
-                          title: `Badge Unlocked! ${badge?.emoji}`,
-                          description: `Congratulations! You've earned the "${badge?.name}" badge.`,
-                        });
-                      });
-                      localStorage.setItem('earned_badges', JSON.stringify([...previousEarned, ...newlyEarned]));
-                    }, 0);
-                  }
-                } else if (currentEarnedIds.length > 0) {
-                  localStorage.setItem('earned_badges', JSON.stringify(currentEarnedIds));
-                }
-              }
-
-              return badges.map((badge) => (
-                <div
-                  key={badge.name}
-                  className={`p-4 rounded-xl text-center transition-all duration-300 ${badge.earned
-                    ? "bg-gradient-to-br from-yellow-100 to-amber-200 border border-yellow-300 shadow-md hover:scale-110"
-                    : "bg-gray-100 border border-gray-200 opacity-60 grayscale hover:grayscale-0"
-                    }`}
-                >
-                  <div className="text-4xl mb-2 drop-shadow-sm">{badge.emoji}</div>
-                  <p className="text-xs font-bold text-gray-900">{badge.name}</p>
-                  {!badge.earned && (
-                    <div className="mt-2 text-[10px] text-gray-500 font-medium tracking-tighter">🔒 LOCKED</div>
-                  )}
-                </div>
-              ));
-            })()}
+            {[
+              { id: "first_upload", name: "First Upload", emoji: "🎯", earned: (userStats?.totalSubmissions || 0) >= 1 },
+              { id: "eco_warrior", name: "Eco Warrior", emoji: "🌱", earned: globalPoints >= 500 },
+              { id: "100_points", name: "100 Points", emoji: "💯", earned: globalPoints >= 100 },
+              { id: "weekly_streak", name: "Weekly Streak", emoji: "🔥", earned: (userStats?.streak || 0) >= 7 },
+              { id: "top_10", name: "Top 10", emoji: "🏆", earned: !!(userStats?.rank && userStats.rank <= 10 && userStats.rank > 0) },
+              { id: "recycling_pro", name: "Recycling Pro", emoji: "♻️", earned: (userStats?.verifiedSubmissions || 0) >= 10 },
+            ].map((badge) => (
+              <div
+                key={badge.name}
+                className={`p-4 rounded-xl text-center transition-all duration-300 ${badge.earned
+                  ? "bg-gradient-to-br from-yellow-100 to-amber-200 border border-yellow-300 shadow-md hover:scale-110"
+                  : "bg-gray-100 border border-gray-200 opacity-60 grayscale hover:grayscale-0"
+                  }`}
+              >
+                <div className="text-4xl mb-2 drop-shadow-sm">{badge.emoji}</div>
+                <p className="text-xs font-bold text-gray-900">{badge.name}</p>
+                {!badge.earned && (
+                  <div className="mt-2 text-[10px] text-gray-500 font-medium tracking-tighter">🔒 LOCKED</div>
+                )}
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -757,7 +759,7 @@ export default function ProfilePage() {
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <p className="text-xs text-gray-500 flex items-center gap-1" suppressHydrationWarning={true}>
                         <Calendar className="h-3 w-3" />
                         {new Date(sub.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </p>
@@ -815,7 +817,7 @@ export default function ProfilePage() {
                   <div>
                     <h3 className="text-2xl font-bold text-gray-900 mb-1">{selectedSubmission.wasteType}</h3>
                     <div className="flex items-center gap-4 text-sm text-gray-500">
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1" suppressHydrationWarning={true}>
                         <Calendar className="h-4 w-4" />
                         {new Date(selectedSubmission.createdAt).toLocaleDateString('en-US', { 
                           month: 'long', 

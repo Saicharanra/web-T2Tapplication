@@ -293,7 +293,7 @@ export default function WalletPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-gray-900 truncate">{transaction.description}</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500" suppressHydrationWarning={true}>
                         {new Date(transaction.createdAt).toLocaleDateString('en-US', {
                           year: 'numeric',
                           month: 'short',

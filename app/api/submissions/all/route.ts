@@ -62,22 +62,39 @@ export async function GET(req: NextRequest) {
 
     const slicedSubmissions = allSubmissions.slice(offset, offset + limitNum);
 
-    // Fetch user info for each submission
-    const submissionsWithUser = await Promise.all(slicedSubmissions.map(async (sub: any) => {
-      const userDoc = await adminDb.collection("users").doc(sub.userId).get();
-      const userData = userDoc.data();
+    // Extract unique user IDs to solve N+1 query problem
+    const uniqueUserIds = Array.from(
+      new Set(
+        slicedSubmissions
+          .map((sub: any) => sub.userId)
+          .filter(Boolean)
+      )
+    );
+
+    const userRefs = (uniqueUserIds as string[]).map(id => adminDb.collection("users").doc(id));
+    const userSnapshots = userRefs.length > 0 ? await adminDb.getAll(...userRefs) : [];
+    const userMap = new Map<string, any>();
+    userSnapshots.forEach(snap => {
+      if (snap.exists) {
+        userMap.set(snap.id, snap.data());
+      }
+    });
+
+    // Fetch user info for each submission using the batch loaded map
+    const submissionsWithUser = slicedSubmissions.map((sub: any) => {
+      const userData = userMap.get(sub.userId);
       return {
         ...sub,
         createdAt: sub.createdAt?.toDate?.() || sub.createdAt,
         user: userData ? {
-          id: userDoc.id,
+          id: sub.userId,
           name: userData.name,
           email: userData.email,
           level: userData.level,
           points: userData.points
         } : null
       };
-    }));
+    });
 
     return NextResponse.json({
       submissions: submissionsWithUser,

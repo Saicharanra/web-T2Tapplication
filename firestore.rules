@@ -2,33 +2,71 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Very simple rules to fix permission issues
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN';
+    }
+
+    // Helper function to verify ownership
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // --- USERS COLLECTION ---
     match /users/{userId} {
-      // Allow any authenticated user to read profiles
-      allow read: if request.auth != null;
-      // Allow users to create/update their own profile
-      allow write: if request.auth != null && request.auth.uid == userId;
+      // Users can read their own profiles, admins can read all profiles
+      allow read: if request.auth != null && (isOwner(userId) || isAdmin());
+      // Users can create/update their own profile
+      allow write: if request.auth != null && isOwner(userId);
     }
 
+    // --- SUBMISSIONS COLLECTION ---
     match /submissions/{submissionId} {
-      allow read: if request.auth != null;
+      // Users can read their own submissions, admins can read all submissions
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      // Users can only submit for themselves
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update: if request.auth != null; // Simpler for now
+      // Client-side updates restricted to owner (admins write via Admin SDK)
+      allow update: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      // Deletions are forbidden
+      allow delete: if false;
     }
 
+    // --- REDEMPTIONS COLLECTION ---
     match /redemptions/{redemptionId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
+      // Users can read their own redemptions, admins can read all redemptions
+      allow read: if request.auth != null && (resource.data.user_id == request.auth.uid || isAdmin());
+      // Users can only create redemptions for themselves
+      allow create: if request.auth != null && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if false;
     }
 
+    // --- REWARDS COLLECTION ---
     match /rewards/{rewardId} {
+      // Publicly readable rewards list
       allow read: if true;
-      allow write: if request.auth != null; // Temporary for setup
+      // Client-side modifications forbidden (Admin SDK handles creation/update on server)
+      allow write: if false;
     }
 
+    // --- POINTS HISTORY COLLECTION ---
     match /pointsHistory/{historyId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
+      // Users can read their own points history, admins can read all
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      // Only system actions can write points logs, but standard client writes allowed for owner as fallback
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // --- NOTIFICATIONS COLLECTION ---
+    match /notifications/{notificationId} {
+      // Users can read/write their own notifications logs
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if request.auth != null && isOwner(resource.data.userId);
     }
   }
 }
