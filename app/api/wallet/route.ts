@@ -22,13 +22,38 @@ export async function GET(req: NextRequest) {
 
     // Get points history
     let transactions: any[] = [];
+    let historyDocs: any[] = [];
+    
     try {
+      // 1. Try to fetch sorted using highly optimized composite index
       const historySnapshot = await adminDb.collection("pointsHistory")
         .where("userId", "==", userId)
         .orderBy("createdAt", "desc")
         .get();
+      historyDocs = historySnapshot.docs;
+    } catch (indexErr) {
+      console.warn("⚠️ PointsHistory index is missing or building. Falling back to in-memory sort...", indexErr);
+      
+      try {
+        // 2. Fallback: fetch unsorted and sort in memory
+        const historySnapshot = await adminDb.collection("pointsHistory")
+          .where("userId", "==", userId)
+          .get();
+        
+        historyDocs = historySnapshot.docs;
+        // Sort in memory: newest first
+        historyDocs.sort((a, b) => {
+          const dateA = a.data().createdAt?.toDate?.() || new Date(a.data().createdAt);
+          const dateB = b.data().createdAt?.toDate?.() || new Date(b.data().createdAt);
+          return dateB.getTime() - dateA.getTime();
+        });
+      } catch (fallbackErr) {
+        console.error("❌ Failed to fetch points history fallback:", fallbackErr);
+      }
+    }
 
-      transactions = await Promise.all(historySnapshot.docs.map(async (doc) => {
+    try {
+      transactions = await Promise.all(historyDocs.map(async (doc) => {
         const data = doc.data();
         let submission = null;
         if (data.submissionId) {
@@ -51,7 +76,7 @@ export async function GET(req: NextRequest) {
         };
       }));
     } catch (e) {
-      console.warn("⚠️ Could not fetch points history (index might be missing):", e);
+      console.warn("⚠️ Could not process points history transactions:", e);
     }
 
     // Calculate stats

@@ -19,16 +19,38 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
-    // Fetch Verified Submissions
-    const verifiedSubmissionsSnapshot = await adminDb.collection("submissions")
-      .where("status", "==", "VERIFIED")
-      .orderBy("updatedAt", "desc")
-      .get();
-
-    const verifiedSubmissions = verifiedSubmissionsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // Fetch Verified Submissions with dynamic fallback
+    let verifiedSubmissions: any[] = [];
+    try {
+      // 1. Try highly optimized composite index query (newest first)
+      const verifiedSubmissionsSnapshot = await adminDb.collection("submissions")
+        .where("status", "==", "VERIFIED")
+        .orderBy("updatedAt", "desc")
+        .get();
+      verifiedSubmissions = verifiedSubmissionsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (indexErr) {
+      console.warn("⚠️ Admin verified submissions index is missing or building. Falling back to in-memory sort...", indexErr);
+      
+      // 2. Fallback: Query equality filter only and sort in memory
+      const verifiedSubmissionsSnapshot = await adminDb.collection("submissions")
+        .where("status", "==", "VERIFIED")
+        .get();
+      
+      verifiedSubmissions = verifiedSubmissionsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Sort in-memory: Newest first
+      verifiedSubmissions.sort((a, b) => {
+        const dateA = a.updatedAt?.toDate?.() || new Date(a.updatedAt);
+        const dateB = b.updatedAt?.toDate?.() || new Date(b.updatedAt);
+        return dateB.getTime() - dateA.getTime();
+      });
+    }
 
     // Calculate Stats
     let totalPoints = 0;

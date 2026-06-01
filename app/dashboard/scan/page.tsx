@@ -91,6 +91,8 @@ export default function UserDashboard() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [location, setLocation] = useState<string>("");
   const [locationLoading, setLocationLoading] = useState(false);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cameraActive, setCameraActive] = useState(false);
@@ -120,6 +122,8 @@ export default function UserDashboard() {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords;
+          setLatitude(latitude);
+          setLongitude(longitude);
           try {
             const response = await fetch(
               `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
@@ -311,6 +315,15 @@ export default function UserDashboard() {
       return;
     }
 
+    if (latitude === null || longitude === null) {
+      toast({
+        title: "❌ GPS Coordinates Required",
+        description: "Please allow GPS location access to automatically map this disposal spot.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploading(true);
 
     try {
@@ -383,6 +396,8 @@ export default function UserDashboard() {
         imageMimeType: uploadData.mimeType,
         location,
         submissionId: uploadData.submissionId,
+        latitude,
+        longitude,
       };
 
       const submissionResponse = await fetchWithAuth('/api/submissions', {

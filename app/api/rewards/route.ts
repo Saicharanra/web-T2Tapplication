@@ -114,6 +114,38 @@ export async function POST(req: NextRequest) {
       };
     });
 
+    // Dispatch Coordinated Notifications (In-App + Transactional Resend Emails)
+    try {
+      const userDoc = await adminDb.collection("users").doc(userId).get();
+      const userData = userDoc.exists ? userDoc.data() : null;
+
+      if (userData && userData.email) {
+        const email = userData.email;
+        const name = userData.name || "Eco Partner";
+        const { sendEmail } = await import("@/lib/notifications/sendEmail");
+
+        // A: Log In-App Notification
+        await adminDb.collection("notifications").add({
+          userId,
+          email,
+          type: "reward_claimed",
+          title: "Reward Claimed",
+          message: `Your reward claim for "${result.reward.title}" has been received successfully.`,
+          read: false,
+          createdAt: new Date(),
+        });
+
+        // B: Send Resend Email
+        await sendEmail(email, "Reward Claim Received 🪙", "claimed", {
+          name,
+          rewardName: result.reward.title,
+          pointsCost: result.reward.points_required,
+        });
+      }
+    } catch (notifErr) {
+      console.error("⚠️ Failed to dispatch post-redemption notifications:", notifErr);
+    }
+
     return NextResponse.json({
       message: "Reward redeemed successfully!",
       ...result,

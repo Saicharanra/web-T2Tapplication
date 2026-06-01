@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "@/lib/firebase-client";
 import { createUser, getUser } from "@/lib/firebase-db";
+import { notify } from "@/lib/notifications/notify";
 import { useRouter } from "next/navigation";
 import { Leaf, Mail, Lock, Loader2, ArrowRight, User, MapPin } from "lucide-react";
 import Link from "next/link";
@@ -42,6 +43,23 @@ export default function SignUp() {
         imageUrl: null,
       });
 
+      // Dispatch Welcome In-App Notification and Resend Transactional Email
+      try {
+        await notify({
+          userId: user.uid,
+          email: user.email!,
+          type: "user_created",
+          title: "Account Created Successfully! 🌍",
+          message: "Welcome to Trash2Treasure! Your account has been successfully created. Thank you for joining our eco-friendly movement!",
+          emailTemplate: "welcome",
+          emailProps: {
+            name: `${firstName} ${lastName}`.trim(),
+          }
+        });
+      } catch (notifErr) {
+        console.error("⚠️ Failed to dispatch welcome notifications:", notifErr);
+      }
+
       router.push("/dashboard/home");
     } catch (err: any) {
       setError(err.message || "Failed to create account");
@@ -70,6 +88,23 @@ export default function SignUp() {
           location: "Not specified",
           imageUrl: user.photoURL,
         });
+
+        // Dispatch Welcome In-App Notification and Resend Transactional Email
+        try {
+          await notify({
+            userId: user.uid,
+            email: user.email!,
+            type: "user_created",
+            title: "Account Created Successfully! 🌍",
+            message: "Welcome to Trash2Treasure! Your account has been successfully created. Thank you for joining our eco-friendly movement!",
+            emailTemplate: "welcome",
+            emailProps: {
+              name: user.displayName || "Eco Partner",
+            }
+          });
+        } catch (notifErr) {
+          console.error("⚠️ Failed to dispatch welcome notifications for Google signup:", notifErr);
+        }
       }
       router.push("/dashboard/home");
     } catch (err: any) {
