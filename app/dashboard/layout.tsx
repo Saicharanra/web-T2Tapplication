@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import logo from "../../assets/logo.png";
+import { Poppins } from "next/font/google";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
@@ -16,8 +18,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { PointsProvider, usePoints } from "./context/PointsContext";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
-
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
 const navigation = [
   { name: "Home", href: "/dashboard/home", icon: Home },
   { name: "Scan Earn", href: "/dashboard/scan", icon: Camera },
@@ -47,14 +53,18 @@ function DashboardHeader() {
         : 'bg-transparent border-transparent'
         }`}>
         {/* Logo and App Name */}
-        <Link href="/" className="flex items-center gap-2 shrink-0 z-10 transition-transform hover:scale-105">
-          <div className="bg-gradient-to-br from-green-500 to-blue-500 p-1.5 rounded-xl shadow-lg xs:p-2">
-            <Leaf className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+        <Link href="/" className="flex items-center shrink-0 z-20 transition-transform hover:scale-105">
+          <div>
+            <img
+              src={logo.src}
+              alt="Trash2Treasure"
+              className="h-7 w-auto"
+            />
           </div>
           <div className="flex items-center pointer-events-auto">
-            <h1 className="font-bold text-base sm:text-lg lg:text-xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400 transition-all duration-300">
-              Trash2Treasure
-            </h1>
+        <h1 className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400`}>
+  Trash2Treasure
+</h1>
           </div>
         </Link>
 
@@ -114,6 +124,10 @@ function DashboardHeader() {
               </svg>
             </Button>
           </div>
+          
+          {/* Real-time In-App Notification Bell */}
+          <NotificationBell />
+
           <Link href="/dashboard/profile" className="p-0.5 rounded-full bg-gradient-to-tr from-green-400 to-blue-500 shadow-lg flex items-center justify-center transition-transform hover:scale-105 pointer-events-auto">
             <div className="bg-white dark:bg-[#0B1527] rounded-full p-0.5 flex items-center justify-center h-[34px] w-[34px] sm:h-[40px] sm:w-[40px] overflow-hidden">
               {user?.photoURL ? (
@@ -168,6 +182,46 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      const handleFirstLoginNotification = async () => {
+        try {
+          const { doc, getDoc, updateDoc } = await import("firebase/firestore");
+          const { db } = await import("@/lib/firebase-client");
+          const { notify } = await import("@/lib/notifications/notify");
+          
+          const userRef = doc(db, "users", user.uid);
+          const userSnap = await getDoc(userRef);
+
+          if (userSnap.exists()) {
+            const data = userSnap.data();
+            if (data.firstLoginPending !== false && !data.hasLoggedInBefore) {
+              await notify({
+                userId: user.uid,
+                email: user.email || "",
+                type: "first_login",
+                title: "First Login Registered 🔑",
+                message: "Welcome back for your first session! Let's start scanning and saving the planet.",
+              });
+
+              await updateDoc(userRef, {
+                firstLoginPending: false,
+                hasLoggedInBefore: true,
+                updatedAt: new Date()
+              });
+            }
+          }
+        } catch (err) {
+          console.error("⚠️ Failed to check or trigger First Login notification:", err);
+        }
+      };
+
+      handleFirstLoginNotification();
+    }
+  }, [user]);
+
   return (
     <PointsProvider>
       <div className="min-h-screen bg-gradient-subtle flex flex-col w-full overflow-hidden">

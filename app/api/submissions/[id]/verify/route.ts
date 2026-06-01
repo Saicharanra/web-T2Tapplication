@@ -147,6 +147,67 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     console.log(`✅ Transaction completed for ${params.id}`);
 
+    // Dynamic Coordinated Notifications (In-App + Transactional Resend Emails)
+    try {
+      const submissionDoc = await adminDb.collection("submissions").doc(params.id).get();
+      const submissionData = submissionDoc.data();
+      
+      if (submissionData) {
+        const userId = submissionData.userId;
+        const userDoc = await adminDb.collection("users").doc(userId).get();
+        const userData = userDoc.exists ? userDoc.data() : null;
+
+        if (userData && userData.email) {
+          const email = userData.email;
+          const name = userData.name || "Eco Partner";
+          const wasteType = submissionData.wasteType || "Waste Disposal";
+          const { sendEmail } = await import("@/lib/notifications/sendEmail");
+
+          if (status === "VERIFIED") {
+            // A: Log In-App Notification
+            await adminDb.collection("notifications").add({
+              userId,
+              email,
+              type: "submission_approved",
+              title: "Submission Approved",
+              message: "Congratulations! Your submission has been approved and reward points have been added to your account.",
+              read: false,
+              createdAt: new Date(),
+            });
+
+            // B: Send Resend Email
+            await sendEmail(email, "Disposal Submission Approved 🎉", "approved", {
+              name,
+              wasteType,
+              points: result.pointsAwarded,
+            });
+          } else if (status === "REJECTED") {
+            const reason = rejectionReason || "Your submission could not be verified. Please review the image and try again.";
+
+            // A: Log In-App Notification
+            await adminDb.collection("notifications").add({
+              userId,
+              email,
+              type: "submission_rejected",
+              title: "Submission Rejected",
+              message: "Your submission could not be verified. Please review the image and try again.",
+              read: false,
+              createdAt: new Date(),
+            });
+
+            // B: Send Resend Email
+            await sendEmail(email, "Disposal Submission Update", "rejected", {
+              name,
+              wasteType,
+              reason,
+            });
+          }
+        }
+      }
+    } catch (notifErr) {
+      console.error("⚠️ Failed to dispatch post-transaction notifications:", notifErr);
+    }
+
     return NextResponse.json({
       submission: result,
       message: status === 'VERIFIED' 

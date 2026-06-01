@@ -31,6 +31,7 @@ interface Redemption {
   redemption_id: string;
   reward_id: string;
   user_id: string;
+  status?: string;
   redeemed_at: string;
   reward?: { title: string; points_required: number; image_url: string } | null;
   user?: { name: string; email: string; imageUrl?: string } | null;
@@ -127,6 +128,32 @@ export default function RewardsPage() {
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleDeliverRedemption = async (redemptionId: string) => {
+    try {
+      const res = await fetchWithAuth("/api/admin/rewards/redemptions", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          redemption_id: redemptionId,
+          status: "DELIVERED",
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to mark as delivered");
+      }
+
+      showToast("🎁 Reward marked as delivered and user notified!", "success");
+      // Refresh list
+      fetchRedemptions();
+    } catch (err: any) {
+      showToast(err.message || "Failed to mark as delivered", "error");
+    }
   };
 
   /* ──────────────── Validation ──────────────── */
@@ -482,6 +509,8 @@ export default function RewardsPage() {
                   <th className="text-left py-3.5 px-5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Reward</th>
                   <th className="text-left py-3.5 px-5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Points Used</th>
                   <th className="text-left py-3.5 px-5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Date</th>
+                  <th className="text-center py-3.5 px-5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="text-right py-3.5 px-5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -504,6 +533,26 @@ export default function RewardsPage() {
                     </td>
                     <td className="py-3.5 px-5 text-sm text-gray-500">
                       {new Date(r.redeemed_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </td>
+                    <td className="py-3.5 px-5 text-center">
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                        r.status === 'DELIVERED' ? 'bg-green-100/80 text-green-700' : 'bg-amber-100/80 text-amber-700'
+                      }`}>
+                        {r.status || 'PENDING'}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-5 text-right">
+                      {(!r.status || r.status === 'PENDING') ? (
+                        <Button
+                          size="sm"
+                          className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-xl text-xs font-semibold px-3 py-1.5 shadow-md shadow-emerald-100/50"
+                          onClick={() => handleDeliverRedemption(r.redemption_id)}
+                        >
+                          🎁 Deliver
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-gray-400 font-medium mr-2">Processed</span>
+                      )}
                     </td>
                   </tr>
                 ))}

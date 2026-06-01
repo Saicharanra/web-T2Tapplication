@@ -17,42 +17,70 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status');
     const limitNum = parseInt(searchParams.get('limit') || "20");
 
-    let query: any = adminDb.collection("submissions").where("userId", "==", userId);
-
-    if (status) {
-      query = query.where("status", "==", status);
-    }
-
-    // Fetch all for the user and sort in memory to avoid missing index errors
-    // (Only recommended for smaller datasets per user)
-    const submissionsSnapshot = await query.get();
-    
     // Fetch user data once
     const userDoc = await adminDb.collection("users").doc(userId).get();
     const userData = userDoc.exists ? userDoc.data() : null;
 
-    const allSubmissions = submissionsSnapshot.docs.map((doc: any) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    let slicedSubmissions: any[] = [];
+    
+    try {
+      // 1. Try highly optimized composite index query (newest first)
+      let query: any = adminDb.collection("submissions")
+        .where("userId", "==", userId);
 
-    // Sort in memory: Newest first
-    allSubmissions.sort((a: any, b: any) => {
-      const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
-      const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
-      return dateB.getTime() - dateA.getTime();
-    });
+      if (status) {
+        query = query.where("status", "==", status);
+      }
 
-    // Apply limit
-    const slicedSubmissions = allSubmissions.slice(0, limitNum).map((sub: any) => ({
-      ...sub,
-      createdAt: sub.createdAt?.toDate?.() || sub.createdAt,
-      user: userData ? {
-        name: userData.name,
-        email: userData.email,
-        level: userData.level
-      } : null
-    }));
+      query = query.orderBy("createdAt", "desc").limit(limitNum);
+      const submissionsSnapshot = await query.get();
+      
+      slicedSubmissions = submissionsSnapshot.docs.map((doc: any) => {
+        const subData = doc.data();
+        return {
+          id: doc.id,
+          ...subData,
+          createdAt: subData.createdAt?.toDate?.() || subData.createdAt,
+          user: userData ? {
+            name: userData.name,
+            email: userData.email,
+            level: userData.level
+          } : null
+        };
+      });
+    } catch (indexErr) {
+      console.warn("⚠️ Submissions index is missing or building. Falling back to in-memory sort...", indexErr);
+      
+      // 2. Fallback: Query equality filters and sort in-memory
+      let query: any = adminDb.collection("submissions").where("userId", "==", userId);
+
+      if (status) {
+        query = query.where("status", "==", status);
+      }
+
+      const submissionsSnapshot = await query.get();
+      const allSubmissions = submissionsSnapshot.docs.map((doc: any) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      // Sort in-memory: Newest first
+      allSubmissions.sort((a: any, b: any) => {
+        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      slicedSubmissions = allSubmissions.slice(0, limitNum).map((sub: any) => ({
+        ...sub,
+        createdAt: sub.createdAt?.toDate?.() || sub.createdAt,
+        user: userData ? {
+          name: userData.name,
+          email: userData.email,
+          level: userData.level
+        } : null
+      }));
+    }
 
     return NextResponse.json({ submissions: slicedSubmissions }, { status: 200 });
   } catch (error: any) {
@@ -85,6 +113,8 @@ export async function POST(req: NextRequest) {
       imageMimeType,
       location,
       submissionId,
+      latitude,
+      longitude,
     } = body;
 
     if (!wasteType || !imageUrl || !imagePath || !location) {
@@ -99,7 +129,6 @@ export async function POST(req: NextRequest) {
 
     if (!userDoc.exists) {
       console.log(`👤 User ${userId} not found in database. Creating basic profile...`);
-      // Get user from Auth to get their email/name if possible
       try {
         const { adminAuth } = require("@/lib/firebase-admin");
         const userAuth = await adminAuth.getUser(userId);
@@ -128,6 +157,9 @@ export async function POST(req: NextRequest) {
 
     const id = submissionId || adminDb.collection("submissions").doc().id;
 
+    const parsedLat = latitude !== undefined && latitude !== null ? Number(latitude) : null;
+    const parsedLng = longitude !== undefined && longitude !== null ? Number(longitude) : null;
+
     const submissionData = {
       id,
       userId,
@@ -137,6 +169,8 @@ export async function POST(req: NextRequest) {
       imageSize: imageSize || 0,
       imageMimeType: imageMimeType || 'image/jpeg',
       location,
+      latitude: parsedLat,
+      longitude: parsedLng,
       status: 'PENDING',
       pointsAwarded: 0,
       createdAt: new Date(),
@@ -145,6 +179,81 @@ export async function POST(req: NextRequest) {
 
     console.log(`📝 Storing submission ${id} for user ${userId}`);
     await adminDb.collection("submissions").doc(id).set(submissionData);
+
+    // Coordinated Notifications (In-App + Transactional Resend Emails)
+    try {
+      if (userData && userData.email) {
+        const email = userData.email;
+        const name = userData.name || "Eco Partner";
+        const { sendEmail } = await import("@/lib/notifications/sendEmail");
+
+        // A: Log In-App Notification
+        await adminDb.collection("notifications").add({
+          userId,
+          email,
+          type: "submission_received",
+          title: "Submission Received",
+          message: "Your disposal submission has been successfully received and is pending review.",
+          read: false,
+          createdAt: new Date(),
+        });
+
+        // B: Send Resend Email
+        await sendEmail(email, "Disposal Submission Received", "received", {
+          name,
+          wasteType,
+          location,
+        });
+      }
+    } catch (notifErr) {
+      console.error("⚠️ Failed to dispatch post-submission notifications:", notifErr);
+    }
+
+    // Dynamic Automatic Shared Waste-Bin Mapping and Grouping (50 meters threshold)
+    if (parsedLat !== null && parsedLng !== null && !isNaN(parsedLat) && !isNaN(parsedLng)) {
+      try {
+        const binsSnapshot = await adminDb.collection("bins").get();
+        let nearbyBinFound = false;
+
+        for (const doc of binsSnapshot.docs) {
+          const binData = doc.data();
+          if (binData.latitude !== undefined && binData.longitude !== undefined) {
+            const dist = calculateDistance(
+              parsedLat,
+              parsedLng,
+              Number(binData.latitude),
+              Number(binData.longitude)
+            );
+            // 50 meters grouping threshold (0.05 km)
+            if (dist < 0.05) {
+              nearbyBinFound = true;
+              console.log(`📌 Automatic Grouping: disposal matches existing bin spot: ${doc.id}`);
+              break;
+            }
+          }
+        }
+
+        if (!nearbyBinFound) {
+          const newBinId = adminDb.collection("bins").doc().id;
+          const newBinData = {
+            id: newBinId,
+            name: `${wasteType || "Waste"} Disposal Point`,
+            address: location || "Community disposal area",
+            latitude: parsedLat,
+            longitude: parsedLng,
+            locationType: "collection_point",
+            photoUrl: imageUrl || "",
+            addedBy: userId,
+            createdAt: new Date(),
+          };
+
+          await adminDb.collection("bins").doc(newBinId).set(newBinData);
+          console.log(`🆕 Automatic Mapped Bin: registered new crowdsourced waste point: ${newBinId}`);
+        }
+      } catch (err) {
+        console.error("⚠️ Error processing automatic shared bin network:", err);
+      }
+    }
 
     const submissionWithUser = {
       ...submissionData,
@@ -158,7 +267,6 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("❌ Error creating submission:", error);
     
-    // Provide more specific error info
     const errorMessage = error.message || "Failed to create submission";
     const status = error.code === 'permission-denied' ? 403 : 500;
 
@@ -174,4 +282,19 @@ export async function POST(req: NextRequest) {
       { status }
     );
   }
+}
+
+// Haversine formula to calculate exact distance in km
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }

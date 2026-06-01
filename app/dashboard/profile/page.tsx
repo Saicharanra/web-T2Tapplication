@@ -40,6 +40,7 @@ interface UserData {
   level: string;
   points: number;
   status: string;
+  location?: string;
   createdAt: string;
 }
 
@@ -69,6 +70,17 @@ export default function ProfilePage() {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [submissionsLoading, setSubmissionsLoading] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+
+  // Profile update and password update states
+  const [profileName, setProfileName] = useState("");
+  const [profileLocation, setProfileLocation] = useState("");
+  const [updatingProfile, setUpdatingProfile] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -200,6 +212,131 @@ export default function ProfilePage() {
     }
   };
 
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!profileName.trim()) {
+      toast({
+        title: "❌ Name Required",
+        description: "Please enter a valid display name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUpdatingProfile(true);
+    try {
+      const { updateProfile: firebaseUpdateProfile } = await import("firebase/auth");
+      const { doc, updateDoc } = await import("firebase/firestore");
+      const { db } = await import("@/lib/firebase-client");
+      const { notify } = await import("@/lib/notifications/notify");
+
+      // 1. Update Firebase Auth Profile
+      await firebaseUpdateProfile(user, {
+        displayName: profileName.trim(),
+      });
+
+      // 2. Update Firestore User Document
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        name: profileName.trim(),
+        location: profileLocation.trim() || "Not specified",
+        updatedAt: new Date(),
+      });
+
+      // 3. Dispatch Coordinated Profile Updated alert
+      await notify({
+        userId: user.uid,
+        email: user.email || "",
+        type: "profile_updated",
+        title: "Profile Updated 👤",
+        message: "Your profile information has been successfully updated.",
+      });
+
+      toast({
+        title: "✅ Profile Updated",
+        description: "Your profile details have been saved successfully.",
+      });
+
+      fetchUserData();
+      setShowEditProfileModal(false);
+    } catch (err: any) {
+      console.error("Failed to update profile:", err);
+      toast({
+        title: "❌ Profile Update Failed",
+        description: err.message || "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "❌ Passwords Match Error",
+        description: "New password and confirmation password do not match.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast({
+        title: "❌ Password Too Short",
+        description: "Password must be at least 6 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const { updatePassword: firebaseUpdatePassword } = await import("firebase/auth");
+      const { notify } = await import("@/lib/notifications/notify");
+
+      // 1. Update Firebase Auth Password
+      await firebaseUpdatePassword(user, newPassword);
+
+      // 2. Dispatch Coordinated Password Changed alert
+      await notify({
+        userId: user.uid,
+        email: user.email || "",
+        type: "password_changed",
+        title: "Password Changed Successfully 🔒",
+        message: "Your account password has been successfully updated.",
+      });
+
+      toast({
+        title: "✅ Password Updated",
+        description: "Your password has been changed successfully.",
+      });
+
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowChangePasswordModal(false);
+    } catch (err: any) {
+      console.error("Failed to update password:", err);
+      if (err.code === "auth/requires-recent-login") {
+        toast({
+          title: "🔑 Reauthentication Needed",
+          description: "For security reasons, please log out and log back in before changing your password.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "❌ Password Update Failed",
+          description: err.message || "Failed to update password. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   const getLevelColor = (level: string) => {
     switch (level) {
       case 'PLATINUM':
@@ -296,10 +433,132 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-            <div className="w-full sm:w-auto flex justify-center sm:justify-end mt-2 sm:mt-0">
+            <div className="w-full sm:w-auto flex flex-wrap justify-center sm:justify-end gap-3 mt-4 sm:mt-0 shrink-0">
+              {/* Edit Profile Dialog */}
+              <Dialog open={showEditProfileModal} onOpenChange={setShowEditProfileModal}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="bg-white/10 hover:bg-white/20 border-white/20 hover:border-white/30 text-white gap-2 rounded-xl transition-all"
+                    onClick={() => {
+                      setProfileName(userData?.name || user?.displayName || "");
+                      setProfileLocation(userData?.location || "Not specified");
+                    }}
+                  >
+                    ✏️ Edit Profile
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-white/95 backdrop-blur-xl border-white/50 rounded-[2rem] max-w-md p-6 shadow-2xl">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                      👤 Edit Profile Details
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleUpdateProfile} className="space-y-4 mt-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Full Name</label>
+                      <Input
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                        placeholder="Eco Warrior"
+                        required
+                        className="rounded-xl border-gray-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Location</label>
+                      <Input
+                        value={profileLocation}
+                        onChange={(e) => setProfileLocation(e.target.value)}
+                        placeholder="e.g. Bangalore, India"
+                        required
+                        className="rounded-xl border-gray-200"
+                      />
+                    </div>
+                    <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setShowEditProfileModal(false)}
+                        className="rounded-xl"
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        type="submit" 
+                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-md"
+                        disabled={updatingProfile}
+                      >
+                        {updatingProfile ? "Saving..." : "Save Changes"}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
+              {/* Change Password Dialog */}
+              <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="bg-white/10 hover:bg-white/20 border-white/20 hover:border-white/30 text-white gap-2 rounded-xl transition-all"
+                  >
+                    🔒 Change Password
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-white/95 backdrop-blur-xl border-white/50 rounded-[2rem] max-w-md p-6 shadow-2xl">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                      🔒 Update Password
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleChangePassword} className="space-y-4 mt-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">New Password</label>
+                      <Input
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Min 6 characters"
+                        required
+                        className="rounded-xl border-gray-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Confirm New Password</label>
+                      <Input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter new password"
+                        required
+                        className="rounded-xl border-gray-200"
+                      />
+                    </div>
+                    <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setShowChangePasswordModal(false)}
+                        className="rounded-xl"
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        type="submit" 
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold shadow-md"
+                        disabled={changingPassword}
+                      >
+                        {changingPassword ? "Updating..." : "Change Password"}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
               <Button
                 variant="destructive"
-                className="gap-2"
+                className="gap-2 rounded-xl"
                 onClick={handleLogout}
                 disabled={signingOut}
               >

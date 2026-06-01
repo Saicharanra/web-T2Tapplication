@@ -46,7 +46,7 @@ export default function Homepage() {
                   🚮 Upload Disposal
                 </Button>
               </Link>
-              <Link href="#" passHref className="w-full sm:w-auto">
+              <Link href="/dashboard/find-bins" passHref className="w-full sm:w-auto">
                 <Button
                   variant="outline"
                   className="w-full sm:w-auto border-2 border-primary/50 text-primary font-semibold px-6 py-6 rounded-xl hover:bg-primary/5 transition-all text-lg bg-white/50 backdrop-blur-sm"
