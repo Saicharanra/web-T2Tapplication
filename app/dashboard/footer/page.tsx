@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import logo from "@/assets/logo.png";
 import { Facebook, Instagram, Twitter, Linkedin } from "lucide-react";
+import { Poppins } from "next/font/google";
 import { motion } from "framer-motion";
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
 
 export default function Footer() {
   return (
@@ -18,13 +25,17 @@ export default function Footer() {
           transition={{ duration: 0.6 }}
           className="space-y-4"
         >
-          <div className="flex items-center justify-center md:justify-start gap-3">
-            <div className="text-white bg-green-600 font-bold px-4 py-2 rounded-xl shadow-md text-lg">
-              T2T
-            </div>
-            <span className="text-2xl font-extrabold text-gray-800">
-              Trash<span className="text-green-600">2</span>Treasure
-            </span>
+          <div className="flex items-center justify-center md:justify-start">
+         <div>
+            <img
+              src={logo.src}
+              alt="Trash2Treasure"
+              className="h-7 w-auto"
+            />
+          </div>
+             <h1 className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400`}>
+  Trash2Treasure
+</h1>
           </div>
 
           <p className="text-gray-600 text-sm leading-relaxed max-w-sm mx-auto md:mx-0">

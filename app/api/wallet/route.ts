@@ -53,17 +53,31 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-      transactions = await Promise.all(historyDocs.map(async (doc) => {
+      // Extract unique submission IDs to solve N+1 query problem
+      const uniqueSubmissionIds = Array.from(
+        new Set(
+          historyDocs
+            .map(doc => doc.data().submissionId)
+            .filter(Boolean)
+        )
+      );
+
+      const submissionRefs = (uniqueSubmissionIds as string[]).map(id => adminDb.collection("submissions").doc(id));
+      const submissionSnapshots = submissionRefs.length > 0 ? await adminDb.getAll(...submissionRefs) : [];
+      const submissionMap = new Map<string, any>();
+      submissionSnapshots.forEach(snap => {
+        if (snap.exists) {
+          submissionMap.set(snap.id, snap.data());
+        }
+      });
+
+      transactions = historyDocs.map((doc) => {
         const data = doc.data();
         let submission = null;
         if (data.submissionId) {
-          try {
-            const subDoc = await adminDb.collection("submissions").doc(data.submissionId).get();
-            if (subDoc.exists) {
-              submission = { wasteType: subDoc.data()?.wasteType };
-            }
-          } catch (e) {
-            console.warn(`⚠️ Could not fetch submission ${data.submissionId} for history`);
+          const subData = submissionMap.get(data.submissionId);
+          if (subData) {
+            submission = { wasteType: subData.wasteType };
           }
         }
         return {
@@ -74,7 +88,7 @@ export async function GET(req: NextRequest) {
           createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date(data.createdAt).toISOString(),
           submission,
         };
-      }));
+      });
     } catch (e) {
       console.warn("⚠️ Could not process points history transactions:", e);
     }

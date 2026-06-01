@@ -30,10 +30,26 @@ export async function GET(req: NextRequest) {
       return dateB.getTime() - dateA.getTime();
     });
 
-    const history = await Promise.all(historyData.map(async (data: any) => {
-      // Fetch reward details
-      const rewardDoc = await adminDb.collection("rewards").doc(data.reward_id).get();
-      const rewardData = rewardDoc.data();
+    // Extract unique reward IDs to solve N+1 query problem
+    const uniqueRewardIds = Array.from(
+      new Set(
+        historyData
+          .map((data: any) => data.reward_id)
+          .filter(Boolean)
+      )
+    );
+
+    const rewardRefs = (uniqueRewardIds as string[]).map(id => adminDb.collection("rewards").doc(id));
+    const rewardSnapshots = rewardRefs.length > 0 ? await adminDb.getAll(...rewardRefs) : [];
+    const rewardMap = new Map<string, any>();
+    rewardSnapshots.forEach(snap => {
+      if (snap.exists) {
+        rewardMap.set(snap.id, snap.data());
+      }
+    });
+
+    const history = historyData.map((data: any) => {
+      const rewardData = rewardMap.get(data.reward_id);
 
       return {
         id: data.id,
@@ -41,7 +57,7 @@ export async function GET(req: NextRequest) {
         date: (data.redeemed_at?.toDate?.() || new Date(data.redeemed_at)).toISOString().split("T")[0],
         code: data.code || `RWD-${data.id.substring(0, 6).toUpperCase()}`,
       };
-    }));
+    });
 
     return NextResponse.json({ history });
   } catch (error: any) {

@@ -32,17 +32,49 @@ export async function GET(req: NextRequest) {
       .limit(limitNum)
       .get();
 
-    const enrichedRedemptions = await Promise.all(redemptionsSnapshot.docs.map(async (doc) => {
-      const data = doc.data();
-      
-      // Fetch reward and user info
-      const [rewardDoc, userDoc] = await Promise.all([
-        adminDb.collection("rewards").doc(data.reward_id).get(),
-        adminDb.collection("users").doc(data.user_id).get()
-      ]);
+    // Extract unique reward and user IDs to solve N+1 query problem
+    const uniqueRewardIds = Array.from(
+      new Set(
+        redemptionsSnapshot.docs
+          .map(doc => doc.data().reward_id)
+          .filter(Boolean)
+      )
+    );
+    const uniqueUserIds = Array.from(
+      new Set(
+        redemptionsSnapshot.docs
+          .map(doc => doc.data().user_id)
+          .filter(Boolean)
+      )
+    );
 
-      const rewardData = rewardDoc.data();
-      const userData = userDoc.data();
+    // Fetch in parallel using batch getAll
+    const rewardRefs = (uniqueRewardIds as string[]).map(id => adminDb.collection("rewards").doc(id));
+    const userRefs = (uniqueUserIds as string[]).map(id => adminDb.collection("users").doc(id));
+
+    const [rewardSnapshots, userSnapshots] = await Promise.all([
+      rewardRefs.length > 0 ? adminDb.getAll(...rewardRefs) : [],
+      userRefs.length > 0 ? adminDb.getAll(...userRefs) : []
+    ]);
+
+    const rewardMap = new Map<string, any>();
+    rewardSnapshots.forEach(snap => {
+      if (snap.exists) {
+        rewardMap.set(snap.id, snap.data());
+      }
+    });
+
+    const userMap = new Map<string, any>();
+    userSnapshots.forEach(snap => {
+      if (snap.exists) {
+        userMap.set(snap.id, snap.data());
+      }
+    });
+
+    const enrichedRedemptions = redemptionsSnapshot.docs.map((doc) => {
+      const data = doc.data();
+      const rewardData = rewardMap.get(data.reward_id);
+      const userData = userMap.get(data.user_id);
 
       return {
         redemption_id: doc.id,
@@ -61,7 +93,7 @@ export async function GET(req: NextRequest) {
           imageUrl: userData.imageUrl,
         } : null,
       };
-    }));
+    });
 
     return NextResponse.json({ redemptions: enrichedRedemptions });
   } catch (error: any) {

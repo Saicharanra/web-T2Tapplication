@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { db } from "@/lib/firebase-client";
-import { collection, getDocs, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
-import { sendEmail } from "@/lib/notifications/sendEmail";
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Calendar, Users, Megaphone, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,37 +32,28 @@ export default function AdminAnnouncementsPage() {
     setSuccessCount(null);
 
     try {
-      // 1. Fetch all registered users from Firestore
-      const usersSnapshot = await getDocs(collection(db, "users"));
-      const usersList: { id: string; email: string; name: string }[] = [];
-
-      usersSnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.email) {
-          usersList.push({
-            id: doc.id,
-            email: data.email,
-            name: data.name || "Eco Partner",
-          });
-        }
-      });
-
-      if (usersList.length === 0) {
-        throw new Error("No registered users found in the database.");
-      }
-
-      if (scheduleType === "scheduled") {
-        // Handle Scheduled logic (Simulated Admin Log queue)
-        const scheduledRef = collection(db, "scheduledAnnouncements");
-        await addDoc(scheduledRef, {
+      const response = await fetchWithAuth("/api/admin/announcements", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           title,
           message,
           targetAudience,
-          scheduleDate: scheduleDate || new Date().toISOString(),
-          status: "queued",
-          createdAt: serverTimestamp(),
-        });
-        
+          scheduleType,
+          scheduleDate: scheduleType === "scheduled" ? scheduleDate : null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Failed to dispatch announcements.");
+      }
+
+      const data = await response.json();
+
+      if (scheduleType === "scheduled") {
         setLoading(false);
         setSuccessCount(0); // Indicates queued
         confetti({ particleCount: 80, colors: ["#3b82f6", "#60a5fa"] });
@@ -74,40 +63,8 @@ export default function AdminAnnouncementsPage() {
         return;
       }
 
-      // 2. Transactionally batch write in-app notifications
-      const batch = writeBatch(db);
-      const notificationsRef = collection(db, "notifications");
-
-      usersList.forEach((recipient) => {
-        const newNotifRef = doc(notificationsRef);
-        batch.set(newNotifRef, {
-          userId: recipient.id,
-          email: recipient.email,
-          type: "announcement",
-          title: `📢 ${title}`,
-          message: message.length > 120 ? `${message.slice(0, 117)}...` : message,
-          read: false,
-          createdAt: new Date(), // Using fresh dates for batch consistencies
-        });
-      });
-
-      await batch.commit();
-
-      // 3. Dispatch Emails concurrently to protect timing
-      const emailPromises = usersList.map((recipient) =>
-        sendEmail(recipient.email, `📢 Announcement: ${title}`, "announcement", {
-          title,
-          message,
-          name: recipient.name,
-        }).catch((err) =>
-          console.warn(`Email delivery failed for ${recipient.email}:`, err)
-        )
-      );
-
-      await Promise.all(emailPromises);
-
       // Succeeded!
-      setSuccessCount(usersList.length);
+      setSuccessCount(data.count);
       setTitle("");
       setMessage("");
       

@@ -56,12 +56,29 @@ export async function GET(req: NextRequest) {
     let totalPoints = 0;
     const usersPointsMap = new Map<string, number>();
     
-    const transactions = await Promise.all(verifiedSubmissions.map(async (sub: any) => {
+    // Extract unique user IDs to solve N+1 query problem
+    const uniqueUserIds = Array.from(
+      new Set(
+        verifiedSubmissions
+          .map((sub: any) => sub.userId)
+          .filter(Boolean)
+      )
+    );
+
+    const userRefs = (uniqueUserIds as string[]).map(id => adminDb.collection("users").doc(id));
+    const userSnapshots = userRefs.length > 0 ? await adminDb.getAll(...userRefs) : [];
+    const userMap = new Map<string, any>();
+    userSnapshots.forEach(snap => {
+      if (snap.exists) {
+        userMap.set(snap.id, snap.data());
+      }
+    });
+
+    const transactions = verifiedSubmissions.map((sub: any) => {
       const pts = Math.floor(sub.pointsAwarded || 0);
       totalPoints += pts;
 
-      const userDoc = await adminDb.collection("users").doc(sub.userId).get();
-      const userData = userDoc.data();
+      const userData = userMap.get(sub.userId);
       const userName = userData?.name || "Unknown";
       
       usersPointsMap.set(userName, (usersPointsMap.get(userName) || 0) + pts);
@@ -76,7 +93,7 @@ export async function GET(req: NextRequest) {
         wasteType: sub.wasteType || "",
         date: sub.updatedAt?.toDate?.()?.toLocaleDateString() || new Date(sub.updatedAt).toLocaleDateString()
       };
-    }));
+    });
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

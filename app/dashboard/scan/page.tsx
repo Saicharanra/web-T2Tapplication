@@ -112,6 +112,36 @@ export default function UserDashboard() {
     // eslint-disable-next-line
   }, [user]);
 
+  useEffect(() => {
+    if (!userStats) return;
+    const currentPoints = pointsContext?.points ?? userStats.totalPoints;
+    const badgesList = [
+      { id: "first_upload", name: "First Upload", emoji: "🎯", earned: userStats.totalSubmissions >= 1 },
+      { id: "eco_warrior", name: "Eco Warrior", emoji: "🌱", earned: currentPoints >= 500 },
+      { id: "100_points", name: "100 Points", emoji: "💯", earned: currentPoints >= 100 },
+      { id: "weekly_streak", name: "Weekly Streak", emoji: "🔥", earned: userStats.streak >= 7 },
+    ];
+    const currentEarnedIds = badgesList.filter(b => b.earned).map(b => b.id);
+    const storedEarned = localStorage.getItem('earned_badges');
+    const previousEarned = storedEarned ? JSON.parse(storedEarned) : null;
+
+    if (previousEarned !== null) {
+      const newlyEarned = currentEarnedIds.filter(id => !previousEarned.includes(id));
+      if (newlyEarned.length > 0) {
+        newlyEarned.forEach(id => {
+          const badge = badgesList.find(b => b.id === id);
+          toast({
+            title: `Badge Unlocked! ${badge?.emoji}`,
+            description: `Congratulations! You've earned the "${badge?.name}" badge.`,
+          });
+        });
+        localStorage.setItem('earned_badges', JSON.stringify([...previousEarned, ...newlyEarned]));
+      }
+    } else if (currentEarnedIds.length > 0) {
+      localStorage.setItem('earned_badges', JSON.stringify(currentEarnedIds));
+    }
+  }, [userStats, pointsContext?.points, toast]);
+
   const getLocation = () => {
     setLocationLoading(true);
     if (
@@ -847,55 +877,26 @@ export default function UserDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {(() => {
-              const currentPoints = pointsContext?.points ?? userStats.totalPoints;
-              const badgesList = [
-                { id: "first_upload", name: "First Upload", emoji: "🎯", earned: userStats.totalSubmissions >= 1 },
-                { id: "eco_warrior", name: "Eco Warrior", emoji: "🌱", earned: currentPoints >= 500 },
-                { id: "100_points", name: "100 Points", emoji: "💯", earned: currentPoints >= 100 },
-                { id: "weekly_streak", name: "Weekly Streak", emoji: "🔥", earned: userStats.streak >= 7 },
-              ];
-
-              if (typeof window !== 'undefined') {
-                const currentEarnedIds = badgesList.filter(b => b.earned).map(b => b.id);
-                const storedEarned = localStorage.getItem('earned_badges');
-                const previousEarned = storedEarned ? JSON.parse(storedEarned) : null;
-
-                if (previousEarned !== null) {
-                  const newlyEarned = currentEarnedIds.filter(id => !previousEarned.includes(id));
-                  if (newlyEarned.length > 0) {
-                    setTimeout(() => {
-                      newlyEarned.forEach(id => {
-                        const badge = badgesList.find(b => b.id === id);
-                        toast({
-                          title: `Badge Unlocked! ${badge?.emoji}`,
-                          description: `Congratulations! You've earned the "${badge?.name}" badge.`,
-                        });
-                      });
-                      localStorage.setItem('earned_badges', JSON.stringify([...previousEarned, ...newlyEarned]));
-                    }, 0);
-                  }
-                } else if (currentEarnedIds.length > 0) {
-                  localStorage.setItem('earned_badges', JSON.stringify(currentEarnedIds));
-                }
-              }
-
-              return badgesList.map((badge) => (
-                <div
-                  key={badge.name}
-                  className={`p-4 rounded-xl text-center transition-all duration-300 ${badge.earned
-                    ? "bg-gradient-to-br from-yellow-100 to-amber-200 border border-yellow-300 shadow-md hover:scale-110"
-                    : "bg-gray-100 border border-gray-200 opacity-60 grayscale hover:grayscale-0"
-                    }`}
-                >
-                  <div className="text-4xl mb-2 drop-shadow-sm">{badge.emoji}</div>
-                  <p className="text-xs font-bold text-gray-900">{badge.name}</p>
-                  {!badge.earned && (
-                    <div className="mt-2 text-[10px] text-gray-500 font-medium tracking-tighter">🔒 LOCKED</div>
-                  )}
-                </div>
-              ));
-            })()}
+            {[
+              { id: "first_upload", name: "First Upload", emoji: "🎯", earned: userStats.totalSubmissions >= 1 },
+              { id: "eco_warrior", name: "Eco Warrior", emoji: "🌱", earned: (pointsContext?.points ?? userStats.totalPoints) >= 500 },
+              { id: "100_points", name: "100 Points", emoji: "💯", earned: (pointsContext?.points ?? userStats.totalPoints) >= 100 },
+              { id: "weekly_streak", name: "Weekly Streak", emoji: "🔥", earned: userStats.streak >= 7 },
+            ].map((badge) => (
+              <div
+                key={badge.name}
+                className={`p-4 rounded-xl text-center transition-all duration-300 ${badge.earned
+                  ? "bg-gradient-to-br from-yellow-100 to-amber-200 border border-yellow-300 shadow-md hover:scale-110"
+                  : "bg-gray-100 border border-gray-200 opacity-60 grayscale hover:grayscale-0"
+                  }`}
+              >
+                <div className="text-4xl mb-2 drop-shadow-sm">{badge.emoji}</div>
+                <p className="text-xs font-bold text-gray-900">{badge.name}</p>
+                {!badge.earned && (
+                  <div className="mt-2 text-[10px] text-gray-500 font-medium tracking-tighter">🔒 LOCKED</div>
+                )}
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -947,7 +948,7 @@ export default function UserDashboard() {
                   <div className="p-3">
                     <p className="font-semibold text-gray-900">{submission.wasteType}</p>
                     <div className="flex items-center justify-between mt-2">
-                      <span className="text-sm text-gray-600">
+                      <span className="text-sm text-gray-600" suppressHydrationWarning={true}>
                         {
                           (() => {
                             try {

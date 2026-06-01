@@ -67,6 +67,7 @@ export default function AdminDashboard() {
       const res = await fetchWithAuth('/api/admin/dashboard');
       if (res.ok) {
         const data = await res.json();
+        console.log("Dashboard response:", data);
         const newStats = data.stats || {
           pendingSubmissions: 0,
           verifiedToday: 0,
@@ -107,6 +108,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
+
+    // Auto-update dashboard metrics every 10 seconds in production
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [fetchDashboardData]);
 
   const stats: Stat[] = [
@@ -169,7 +177,7 @@ export default function AdminDashboard() {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="h-5 w-5 text-amber-300" />
-              <span className="text-white/80 text-sm font-medium">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+              <span className="text-white/80 text-sm font-medium" suppressHydrationWarning={true}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold mb-1">{getGreeting()}, Admin! 👋</h1>
             <p className="text-white/70 text-sm sm:text-base">Here&apos;s what&apos;s happening with Trash2Treasure today.</p>

@@ -2,8 +2,10 @@
 
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect } from "react";
+import { Poppins } from "next/font/google";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import logo from "../../assets/logo.png";
 import {
   Menu, X, Leaf, BarChart3, Images, Users, TrendingUp,
   Coins, Settings, Circle, Loader2, Gift, ChevronRight,
@@ -12,7 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
-
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
 const navigationBase = [
   { name: "Dashboard", href: "/admin", icon: BarChart3, section: "MAIN", description: "Overview & analytics" },
   { name: "Submissions", href: "/admin/submissions", icon: Images, badge: null, section: "MAIN", description: "Review waste reports" },
@@ -189,17 +194,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
 
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-200/50">
-                <Leaf className="h-5 w-5 text-white" />
-              </div>
-              <div className="hidden sm:block">
-                <h1 className="font-bold text-base text-gray-900 leading-tight tracking-tight">
-                  T2T Admin
-                </h1>
-                <p className="text-[11px] text-gray-400 font-medium">Trash2Treasure Telangana</p>
-              </div>
-            </div>
+            <div>
+            <img
+              src={logo.src}
+              alt="Trash2Treasure"
+              className="h-7 w-auto"
+            />
+          </div>
+          <div className="flex items-center pointer-events-auto">
+ <h1
+  className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-black to-emerald-700 dark:from-gray-100 dark:to-emerald-400`}
+>
+  Admin Panel
+</h1>
+          </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">

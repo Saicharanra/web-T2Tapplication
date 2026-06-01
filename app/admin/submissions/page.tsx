@@ -431,7 +431,7 @@ export default function SubmissionsPage() {
                   </div>
                   <div className="flex justify-between items-center pb-1 border-b border-gray-200/40">
                     <span className="text-sm text-gray-500 font-medium">Submitted:</span>
-                    <span className="text-sm font-semibold text-gray-900">{new Date(submission.createdAt).toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-sm font-semibold text-gray-900" suppressHydrationWarning={true}>{new Date(submission.createdAt).toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   <div className="flex justify-between items-center pb-1 border-b border-gray-200/40">
                     <span className="text-sm text-gray-500 font-medium">Points:</span>

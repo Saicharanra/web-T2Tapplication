@@ -531,7 +531,7 @@ export default function RewardsPage() {
                     <td className="py-3.5 px-5">
                       <span className="text-sm font-bold text-rose-500">-{(r.reward?.points_required || 0).toLocaleString()}</span>
                     </td>
-                    <td className="py-3.5 px-5 text-sm text-gray-500">
+                    <td className="py-3.5 px-5 text-sm text-gray-500" suppressHydrationWarning={true}>
                       {new Date(r.redeemed_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </td>
                     <td className="py-3.5 px-5 text-center">
