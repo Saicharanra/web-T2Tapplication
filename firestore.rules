@@ -68,5 +68,15 @@ service cloud.firestore {
       allow update: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if request.auth != null && isOwner(resource.data.userId);
     }
+
+    // --- BINS COLLECTION ---
+    match /bins/{binId} {
+      // Bins are readable by any authenticated user
+      allow read: if request.auth != null;
+      // Users can create a bin if they are authenticated and set themselves as the creator
+      allow create: if request.auth != null && request.resource.data.addedBy == request.auth.uid;
+      // Client-side updates/deletes are only allowed for Admins
+      allow update, delete: if request.auth != null && isAdmin();
+    }
   }
 }

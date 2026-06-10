@@ -5,6 +5,8 @@ import {
   query,
   onSnapshot,
   serverTimestamp,
+  doc,
+  deleteDoc,
 } from "firebase/firestore";
 import { BinDocument } from "@/types/find-bins";
 
@@ -68,4 +70,12 @@ export function subscribeToBins(
       if (onError) onError(error);
     }
   );
+}
+
+/**
+ * Deletes a waste-bin document from Firestore.
+ */
+export async function deleteBin(binId: string): Promise<void> {
+  const binRef = doc(db, BINS_COLLECTION, binId);
+  await deleteDoc(binRef);
 }

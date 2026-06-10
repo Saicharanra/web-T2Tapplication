@@ -9,7 +9,7 @@ import logo from "../../assets/logo.png";
 import {
   Menu, X, Leaf, BarChart3, Images, Users, TrendingUp,
   Coins, Settings, Circle, Loader2, Gift, ChevronRight,
-  Bell, Search, LogOut, Cpu
+  Bell, Search, LogOut, Cpu, Map
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ const poppins = Poppins({
 const navigationBase = [
   { name: "Dashboard", href: "/admin", icon: BarChart3, section: "MAIN", description: "Overview & analytics" },
   { name: "Submissions", href: "/admin/submissions", icon: Images, badge: null, section: "MAIN", description: "Review waste reports" },
+  { name: "Manage Bins", href: "/admin/bins", icon: Map, section: "MAIN", description: "Manage & Add waste bins" },
   { name: "Rewards", href: "/admin/rewards", icon: Gift, section: "MAIN", description: "Manage reward catalog" },
   { name: "Users", href: "/admin/users", icon: Users, section: "MAIN", description: "User management" },
   { name: "Reports", href: "/admin/reports", icon: TrendingUp, section: "ANALYTICS", description: "Progress analytics" },

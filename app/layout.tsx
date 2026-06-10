@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export const metadata: Metadata = {
-  title: "Trash2Treasure - T2T Telangana",
+  title: "Trash2Treasure",
   description: "A smart waste-to-credit system that rewards users for responsible recycling",
 };
 
