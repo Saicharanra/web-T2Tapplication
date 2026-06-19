@@ -19,15 +19,15 @@ const poppins = Poppins({
   weight: ["400", "500", "600", "700"],
 });
 const navigationBase = [
-  { name: "Dashboard", href: "/admin", icon: BarChart3, section: "MAIN", description: "Overview & analytics" },
-  { name: "Submissions", href: "/admin/submissions", icon: Images, badge: null, section: "MAIN", description: "Review waste reports" },
-  { name: "Manage Bins", href: "/admin/bins", icon: Map, section: "MAIN", description: "Manage & Add waste bins" },
-  { name: "Rewards", href: "/admin/rewards", icon: Gift, section: "MAIN", description: "Manage reward catalog" },
-  { name: "Users", href: "/admin/users", icon: Users, section: "MAIN", description: "User management" },
-  { name: "Reports", href: "/admin/reports", icon: TrendingUp, section: "ANALYTICS", description: "Progress analytics" },
-  { name: "Points History", href: "/admin/points", icon: Coins, section: "ANALYTICS", description: "Point transactions" },
-  { name: "ML Model Tuning", href: "/admin/model-tuning", icon: Cpu, section: "SYSTEM", description: "Fine-tune & monitor MobileNet" },
-  { name: "Settings", href: "/admin/settings", icon: Settings, section: "SYSTEM", description: "System configuration" },
+  { name: "Dashboard", href: "/teams", icon: BarChart3, section: "MAIN", description: "Overview & analytics" },
+  { name: "Submissions", href: "/teams/submissions", icon: Images, badge: null, section: "MAIN", description: "Review waste reports" },
+  { name: "Manage Bins", href: "/teams/bins", icon: Map, section: "MAIN", description: "Manage & Add waste bins" },
+  { name: "Rewards", href: "/teams/rewards", icon: Gift, section: "MAIN", description: "Manage reward catalog" },
+  { name: "Users", href: "/teams/users", icon: Users, section: "MAIN", description: "User management" },
+  { name: "Reports", href: "/teams/reports", icon: TrendingUp, section: "ANALYTICS", description: "Progress analytics" },
+  { name: "Points History", href: "/teams/points", icon: Coins, section: "ANALYTICS", description: "Point transactions" },
+  { name: "ML Model Tuning", href: "/teams/model-tuning", icon: Cpu, section: "SYSTEM", description: "Fine-tune & monitor MobileNet" },
+  { name: "Settings", href: "/teams/settings", icon: Settings, section: "SYSTEM", description: "System configuration" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

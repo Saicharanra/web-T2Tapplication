@@ -353,19 +353,19 @@ export default function AdminDashboard() {
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100/80 p-5">
             <h3 className="text-base font-bold text-gray-900 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-2 gap-3">
-              <a href="/admin/submissions" className="flex flex-col items-center gap-2 p-4 bg-amber-50 rounded-xl border border-amber-100/80 hover:bg-amber-100/80 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
+              <a href="/teams/submissions" className="flex flex-col items-center gap-2 p-4 bg-amber-50 rounded-xl border border-amber-100/80 hover:bg-amber-100/80 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
                 <Clock className="h-6 w-6 text-amber-600 group-hover:scale-110 transition-transform" />
                 <span className="text-xs font-semibold text-amber-700">Review</span>
               </a>
-              <a href="/admin/users" className="flex flex-col items-center gap-2 p-4 bg-blue-50 rounded-xl border border-blue-100/80 hover:bg-blue-100/80 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
+              <a href="/teams/users" className="flex flex-col items-center gap-2 p-4 bg-blue-50 rounded-xl border border-blue-100/80 hover:bg-blue-100/80 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
                 <UsersIcon className="h-6 w-6 text-blue-600 group-hover:scale-110 transition-transform" />
                 <span className="text-xs font-semibold text-blue-700">Users</span>
               </a>
-              <a href="/admin/reports" className="flex flex-col items-center gap-2 p-4 bg-purple-50 rounded-xl border border-purple-100/80 hover:bg-purple-100/80 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
+              <a href="/teams/reports" className="flex flex-col items-center gap-2 p-4 bg-purple-50 rounded-xl border border-purple-100/80 hover:bg-purple-100/80 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
                 <TrendingUp className="h-6 w-6 text-purple-600 group-hover:scale-110 transition-transform" />
                 <span className="text-xs font-semibold text-purple-700">Reports</span>
               </a>
-              <a href="/admin/rewards" className="flex flex-col items-center gap-2 p-4 bg-emerald-50 rounded-xl border border-emerald-100/80 hover:bg-emerald-100/80 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
+              <a href="/teams/rewards" className="flex flex-col items-center gap-2 p-4 bg-emerald-50 rounded-xl border border-emerald-100/80 hover:bg-emerald-100/80 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
                 <Coins className="h-6 w-6 text-emerald-600 group-hover:scale-110 transition-transform" />
                 <span className="text-xs font-semibold text-emerald-700">Rewards</span>
               </a>
@@ -378,7 +378,7 @@ export default function AdminDashboard() {
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100/80 overflow-hidden">
         <div className="p-5 border-b border-gray-100/80 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">Recent Submissions</h2>
-          <a href="/admin/submissions" className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-sm font-semibold rounded-xl transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5">
+          <a href="/teams/submissions" className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-sm font-semibold rounded-xl transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5">
             View All
           </a>
         </div>

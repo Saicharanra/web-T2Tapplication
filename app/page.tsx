@@ -213,7 +213,7 @@ export default function Home() {
                       <span>Loading...</span>
                     </div>
                   ) : userRole === "ADMIN" ? (
-                    <Link href="/admin">
+                    <Link href="/teams">
                       <Button
                         size="lg"
                         className="bg-white text-primary hover:bg-white/90 shadow-xl"
