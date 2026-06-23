@@ -82,6 +82,13 @@ export default function ProfilePage() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
+  // Contact Us form state
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactSubject, setContactSubject] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [sendingContact, setSendingContact] = useState(false);
+
   useEffect(() => {
     if (user) {
       fetchUserData();
@@ -859,38 +866,112 @@ export default function ProfilePage() {
       <Card className="bg-white/60 backdrop-blur-md border border-white/50 shadow-sm relative overflow-hidden hover:shadow-lg hover:scale-[1.02] transition-all duration-300">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-cyan-500" />
         <CardHeader>
-          <CardTitle>Contact Us</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-blue-500" />
+            Contact Us
+          </CardTitle>
+          <p className="text-sm text-gray-500 mt-1">Send us a message and we&apos;ll get back to you via email.</p>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); toast({ title: "Message Sent", description: "We've received your message and will get back to you soon." }); }}>
+          <form
+            className="space-y-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSendingContact(true);
+              try {
+                const res = await fetch("/api/contact", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name: contactName,
+                    email: contactEmail,
+                    subject: contactSubject,
+                    message: contactMessage,
+                  }),
+                });
+                if (!res.ok) {
+                  const errData = await res.json();
+                  throw new Error(errData.error || "Failed to send message.");
+                }
+                toast({
+                  title: "✅ Message Sent!",
+                  description: "We've received your message and will reply to your email shortly.",
+                });
+                setContactName("");
+                setContactEmail("");
+                setContactSubject("");
+                setContactMessage("");
+              } catch (err: any) {
+                toast({
+                  title: "❌ Failed to Send",
+                  description: err.message || "Something went wrong. Please try again.",
+                  variant: "destructive",
+                });
+              } finally {
+                setSendingContact(false);
+              }
+            }}
+          >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Your Name</label>
-                <Input placeholder="Enter your name" required />
+                <Input
+                  placeholder="Enter your name"
+                  required
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  disabled={sendingContact}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Email Address</label>
-                <Input type="email" placeholder="Enter your email" required />
+                <Input
+                  type="email"
+                  placeholder="Enter your email"
+                  required
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  disabled={sendingContact}
+                />
               </div>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">Subject</label>
-              <Input placeholder="What is this regarding?" required />
+              <Input
+                placeholder="What is this regarding?"
+                required
+                value={contactSubject}
+                onChange={(e) => setContactSubject(e.target.value)}
+                disabled={sendingContact}
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">Message</label>
               <textarea
-                className="flex min-h-[120px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+                className="flex min-h-[120px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 resize-y transition-all"
                 placeholder="Type your message here..."
                 required
+                value={contactMessage}
+                onChange={(e) => setContactMessage(e.target.value)}
+                disabled={sendingContact}
               />
             </div>
             <Button
               type="submit"
-              className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg transition-all"
+              disabled={sendingContact}
+              className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg transition-all disabled:opacity-60"
             >
-              <Mail className="h-4 w-4 mr-2" />
-              Send Message
+              {sendingContact ? (
+                <>
+                  <Recycle className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send Message
+                </>
+              )}
             </Button>
           </form>
         </CardContent>
