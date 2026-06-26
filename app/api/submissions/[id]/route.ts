@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
 import cloudinary from "@/lib/cloudinary";
 
@@ -20,7 +20,7 @@ export async function DELETE(
 
     // Check if user is admin
     const userDoc = await adminDb.collection("users").doc(userId).get();
-    if (!userDoc.exists || userDoc.data()?.role !== "ADMIN") {
+    if (!userDoc.exists || !["ADMIN","OWNER"].includes(userDoc.data()?.role)) {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 

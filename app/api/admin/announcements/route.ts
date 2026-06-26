@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
 import { sendEmail } from "@/lib/notifications/sendEmail";
 
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     // Verify Admin Role
     const userDoc = await adminDb.collection("users").doc(userId).get();
-    if (!userDoc.exists || userDoc.data()?.role !== "ADMIN") {
+    if (!userDoc.exists || !["ADMIN","OWNER"].includes(userDoc.data()?.role)) {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
@@ -104,3 +104,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
     // Verify Admin Role
     const userDoc = await adminDb.collection("users").doc(userId).get();
-    if (!userDoc.exists || userDoc.data()?.role !== "ADMIN") {
+    if (!userDoc.exists || !["ADMIN","OWNER"].includes(userDoc.data()?.role)) {
       // In some apps, regular users can see other users. 
       // But based on the original code, it seems like a general list.
       // I'll keep it admin only for security if it returns all users.

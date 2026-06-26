@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
 import * as admin from "firebase-admin";
 
@@ -21,7 +21,7 @@ export async function PATCH(
 
     // Check if user is admin
     const adminUserDoc = await adminDb.collection("users").doc(adminId).get();
-    if (!adminUserDoc.exists || adminUserDoc.data()?.role !== "ADMIN") {
+    if (!adminUserDoc.exists || !["ADMIN","OWNER"].includes(adminUserDoc.data()?.role)) {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 

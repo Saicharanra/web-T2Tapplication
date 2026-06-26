@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     const adminUserDoc = await adminDb.collection("users").doc(adminUserId).get();
     const adminUser = adminUserDoc.data();
 
-    if (!adminUserDoc.exists || adminUser?.role !== "ADMIN") {
+    if (!adminUserDoc.exists || !["ADMIN","OWNER"].includes(adminUser?.role)) {
       return NextResponse.json(
         {
           error: "Forbidden: Admin access required",

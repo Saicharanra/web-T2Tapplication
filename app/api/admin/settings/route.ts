@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = 'force-dynamic';
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     // Check if user is admin
     const userDoc = await adminDb.collection("users").doc(userId).get();
-    if (!userDoc.exists || userDoc.data()?.role !== "ADMIN") {
+    if (!userDoc.exists || !["ADMIN","OWNER"].includes(userDoc.data()?.role)) {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
@@ -61,3 +61,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
   }
 }
+

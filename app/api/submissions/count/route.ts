@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    if (user?.role !== "ADMIN") {
+    if (!["ADMIN","OWNER"].includes(user?.role ?? "")) {
       return NextResponse.json(
         { error: "Forbidden: Admin access required", currentRole: user?.role },
         { status: 403 }

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,7 @@ async function verifyAdmin(req: NextRequest) {
 
   // Check if user is admin
   const userDoc = await adminDb.collection("users").doc(userId).get();
-  if (!userDoc.exists || userDoc.data()?.role !== "ADMIN") {
+  if (!userDoc.exists || !["ADMIN","OWNER"].includes(userDoc.data()?.role)) {
     throw new Error("Forbidden");
   }
 
@@ -117,3 +117,4 @@ export async function POST(req: NextRequest) {
     }, { status: 502 });
   }
 }
+
