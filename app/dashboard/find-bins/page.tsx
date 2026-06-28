@@ -93,6 +93,8 @@ export default function FindBinsPage() {
 
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 px-1 md:px-0 animate-in fade-in duration-300">
+      <title>Find Recycling Bins | Trash2Treasure</title>
+      <meta name="description" content="Locate nearby recycling bins in your community on our interactive map." />
       {/* Dynamic Eco Mapped Header */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}

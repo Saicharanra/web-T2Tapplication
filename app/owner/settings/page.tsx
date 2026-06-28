@@ -122,6 +122,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 max-w-4xl">
+      <title>System Settings | Admin Panel</title>
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>

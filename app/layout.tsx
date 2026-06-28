@@ -8,8 +8,52 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export const metadata: Metadata = {
-  title: "Trash2Treasure",
-  description: "A smart waste-to-credit system that rewards users for responsible recycling",
+  metadataBase: new URL("https://trash2treasure.co.in"),
+  title: {
+    default: "Trash2Treasure | Gamified Waste Management & Recycling Rewards",
+    template: "%s | Trash2Treasure",
+  },
+  description: "Gamified waste management platform that rewards users for responsible recycling.",
+  keywords: ["recycling", "waste management", "sustainability", "environment", "eco", "Trash2Treasure"],
+  authors: [{ name: "Trash2Treasure Team" }],
+  creator: "Trash2Treasure",
+  publisher: "Trash2Treasure",
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://trash2treasure.co.in",
+    title: "Trash2Treasure | Gamified Waste Management",
+    description: "Gamified waste management platform that rewards users for responsible recycling.",
+    siteName: "Trash2Treasure",
+    images: [
+      {
+        url: "/icon.png",
+        width: 512,
+        height: 512,
+        alt: "Trash2Treasure - Turn Your Trash Into Treasure",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Trash2Treasure | Gamified Waste Management",
+    description: "Gamified waste management platform that rewards users for responsible recycling.",
+    images: ["/icon.png"],
+  },
 };
 
 export default function RootLayout({

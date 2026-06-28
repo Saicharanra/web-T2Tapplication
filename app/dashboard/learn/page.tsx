@@ -94,6 +94,8 @@ const tips = [
 export default function LearnPage() {
   return (
     <div className="space-y-6">
+      <title>Learn & Grow | Trash2Treasure</title>
+      <meta name="description" content="Educational resources for sustainable living and recycling." />
       <div>
         <h1 className="text-3xl font-bold text-gray-900">📚 Learn & Grow</h1>
         <p className="text-gray-600 mt-1">Educational resources for sustainable living</p>

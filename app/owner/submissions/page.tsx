@@ -270,6 +270,7 @@ export default function SubmissionsPage() {
 
   return (
     <div className="space-y-6">
+      <title>Review Submissions | Admin Panel</title>
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Submissions Management</h1>
         <p className="text-gray-600 mt-1">Review and verify waste recycling submissions</p>

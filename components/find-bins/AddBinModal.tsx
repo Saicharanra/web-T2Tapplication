@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { X, Upload, MapPin, Camera, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserLocation } from "@/types/find-bins";
@@ -192,7 +193,7 @@ export function AddBinModal({
             <label className="font-bold text-slate-700 dark:text-slate-300">Photograph (Optional)</label>
             {photoPreview ? (
               <div className="relative w-full h-32 rounded-2xl overflow-hidden shadow-inner border border-slate-200">
-                <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                <Image src={photoPreview} alt="Preview" fill className="object-cover" unoptimized />
                 <button
                   type="button"
                   onClick={() => {

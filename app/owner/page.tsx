@@ -4,6 +4,7 @@ import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import { Clock, Check, X, Coins, Users as UsersIcon, RefreshCw, ArrowUp, ArrowDown, Sparkles, TrendingUp, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 
 interface Stat {
   title: string;
@@ -119,54 +120,57 @@ export default function AdminDashboard() {
 
   const stats: Stat[] = [
     {
-      title: "Pending",
+      title: "Submissions Pending",
       value: String(dashboardData.stats.pendingSubmissions),
-      change: "Needs review",
+      change: "Awaiting review",
       changeType: "positive",
       icon: Clock,
       gradient: "from-amber-400 to-orange-500",
       glowColor: "shadow-amber-200/50",
     },
     {
-      title: "Verified Today",
-      value: String(dashboardData.stats.verifiedToday),
-      change: "Approved",
+      title: "Processed Today",
+      value: String(dashboardData.stats.verifiedToday + dashboardData.stats.rejectedToday),
+      change: `${dashboardData.stats.verifiedToday} approved • ${dashboardData.stats.rejectedToday} rejected`,
       changeType: "positive",
       icon: Check,
       gradient: "from-emerald-400 to-teal-600",
       glowColor: "shadow-emerald-200/50",
     },
     {
-      title: "Rejected",
-      value: String(dashboardData.stats.rejectedToday),
-      change: "Today",
-      changeType: "negative",
-      icon: X,
-      gradient: "from-rose-400 to-red-600",
-      glowColor: "shadow-rose-200/50",
+      title: "Today's Approval Rate",
+      value: (dashboardData.stats.verifiedToday + dashboardData.stats.rejectedToday) > 0
+        ? `${Math.round((dashboardData.stats.verifiedToday / (dashboardData.stats.verifiedToday + dashboardData.stats.rejectedToday)) * 100)}%`
+        : "0%",
+      change: "Ratio of approved uploads",
+      changeType: "positive",
+      icon: TrendingUp,
+      gradient: "from-blue-400 to-indigo-600",
+      glowColor: "shadow-blue-200/50",
     },
     {
-      title: "Points Awarded",
+      title: "Total Points Awarded",
       value: String(dashboardData.stats.totalPoints.toLocaleString()),
-      change: "Total",
+      change: "All-time rewards given",
       changeType: "positive",
       icon: Coins,
       gradient: "from-violet-400 to-purple-600",
       glowColor: "shadow-violet-200/50",
     },
     {
-      title: "Active Users",
+      title: "Registered Citizens",
       value: String(dashboardData.stats.totalUsers),
-      change: `+${dashboardData.stats.newThisWeek} this week`,
+      change: `+${dashboardData.stats.newThisWeek} joined this week`,
       changeType: "positive",
       icon: UsersIcon,
-      gradient: "from-blue-400 to-indigo-600",
-      glowColor: "shadow-blue-200/50",
+      gradient: "from-teal-400 to-emerald-600",
+      glowColor: "shadow-teal-200/50",
     },
   ];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
+      <title>Admin Dashboard | Trash2Treasure</title>
       {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-6 sm:p-8 text-white">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyem0wLTMwVjBoLTEydjRoMTJ6TTI0IDI0aDEydi0ySDI0djJ6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30"></div>
@@ -407,7 +411,7 @@ export default function AdminDashboard() {
               </div>
 
               <div className="w-full h-44 bg-gray-100 rounded-xl mb-4 overflow-hidden relative group cursor-pointer">
-                <img src={sub.imageUrl || 'https://images.pexels.com/photos/3735218/pexels-photo-3735218.jpeg?auto=compress&cs=tinysrgb&w=400'} alt={sub.wasteType} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                <Image src={sub.imageUrl || 'https://images.pexels.com/photos/3735218/pexels-photo-3735218.jpeg?auto=compress&cs=tinysrgb&w=400'} alt={sub.wasteType} fill className="object-cover group-hover:scale-110 transition-transform duration-700" unoptimized />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </div>
 

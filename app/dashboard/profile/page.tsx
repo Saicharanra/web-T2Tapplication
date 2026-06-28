@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -421,6 +422,8 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6 relative z-10 w-full animate-fade-in">
+      <title>Your Profile | Trash2Treasure</title>
+      <meta name="description" content="Manage your account profile and eco-achievements." />
       {/* Background Decor */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-green-500/10 blur-[120px] rounded-full pointer-events-none -z-10" />
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/10 blur-[100px] rounded-full pointer-events-none -z-10" />
@@ -437,9 +440,9 @@ export default function ProfilePage() {
 
         <CardContent className="p-6 md:p-8 relative z-10 text-white">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 flex-wrap text-center sm:text-left">
-            <div className="h-24 w-24 md:h-28 md:w-28 rounded-full flex items-center justify-center border-4 border-white/60 shadow-xl overflow-hidden shrink-0 bg-white/20 mx-auto sm:mx-0">
+            <div className="h-24 w-24 md:h-28 md:w-28 rounded-full flex items-center justify-center border-4 border-white/60 shadow-xl overflow-hidden shrink-0 bg-white/20 mx-auto sm:mx-0 relative">
               {user?.photoURL ? (
-                <img src={user.photoURL} alt={user?.displayName || "User"} className="h-full w-full object-cover" />
+                <Image src={user.photoURL} alt={user?.displayName || "User"} fill className="object-cover" unoptimized />
               ) : (
                 <div className="text-4xl font-bold">
                   {userData?.name ? getInitials(userData.name) : user?.displayName?.[0] || 'U'}
@@ -743,10 +746,12 @@ export default function ProfilePage() {
                   className="flex items-center gap-4 p-4 rounded-2xl bg-white/50 border border-white shadow-sm hover:shadow-md transition-all group cursor-pointer"
                 >
                   <div className="h-16 w-16 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-gray-100 relative">
-                    <img 
+                    <Image 
                       src={sub.imageUrl} 
                       alt={sub.wasteType} 
-                      className="h-full w-full object-cover transition-transform group-hover:scale-110 duration-500"
+                      fill
+                      className="object-cover transition-transform group-hover:scale-110 duration-500"
+                      unoptimized
                     />
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <Eye className="text-white h-5 w-5" />
@@ -806,10 +811,12 @@ export default function ProfilePage() {
           {selectedSubmission && (
             <div className="flex flex-col">
               <div className="relative aspect-video w-full bg-gray-100">
-                <img 
+                <Image 
                   src={selectedSubmission.imageUrl} 
                   alt={selectedSubmission.wasteType}
-                  className="w-full h-full object-contain"
+                  fill
+                  className="object-contain"
+                  unoptimized
                 />
                 <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold shadow-lg ${
                   selectedSubmission.status === 'VERIFIED' ? 'bg-green-500 text-white' :

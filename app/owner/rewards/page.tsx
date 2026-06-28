@@ -329,6 +329,7 @@ export default function RewardsPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      <title>Manage Rewards Catalog | Admin Panel</title>
       {/* Toast */}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right duration-300

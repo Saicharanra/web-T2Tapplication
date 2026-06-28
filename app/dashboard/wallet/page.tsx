@@ -127,6 +127,8 @@ export default function WalletPage() {
 
   return (
     <div className="space-y-6">
+      <title>Wallet Dashboard | Trash2Treasure</title>
+      <meta name="description" content="Manage your points, redeem rewards, and track impact." />
       <div>
         <div className="flex items-center justify-between">
           <div>

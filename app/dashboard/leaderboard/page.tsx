@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,6 +114,8 @@ export default function LeaderboardPage() {
 
   return (
     <div className="space-y-6">
+      <title>Leaderboard | Trash2Treasure</title>
+      <meta name="description" content="Compete with other eco-warriors in Telangana." />
       <div>
         <h1 className="text-3xl font-bold text-gray-900">🏆 Leaderboard</h1>
         <p className="text-gray-600 mt-1">Compete with other eco-warriors in Telangana</p>
@@ -135,10 +138,10 @@ export default function LeaderboardPage() {
               <div
                 className={`h-20 w-20 rounded-full bg-gradient-to-br ${getLevelGradient(
                   user.level
-                )} mx-auto mb-3 flex items-center justify-center text-white text-2xl font-bold shadow-lg overflow-hidden`}
+                )} mx-auto mb-3 flex items-center justify-center text-white text-2xl font-bold shadow-lg overflow-hidden relative`}
               >
                 {user.avatar.startsWith('http') ? (
-                  <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+                  <Image src={user.avatar} alt={user.name} fill className="object-cover" unoptimized />
                 ) : (
                   user.avatar
                 )}
@@ -161,9 +164,9 @@ export default function LeaderboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center text-2xl font-bold overflow-hidden">
+                <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center text-2xl font-bold overflow-hidden relative">
                   {currentUser.avatar.startsWith('http') ? (
-                    <img src={currentUser.avatar} alt={currentUser.name} className="h-full w-full object-cover" />
+                    <Image src={currentUser.avatar} alt={currentUser.name} fill className="object-cover" unoptimized />
                   ) : (
                     currentUser.avatar
                   )}
@@ -221,10 +224,10 @@ export default function LeaderboardPage() {
                     <div
                       className={`h-12 w-12 shrink-0 rounded-full bg-gradient-to-br ${getLevelGradient(
                         user.level
-                      )} flex items-center justify-center text-white font-bold shadow-md overflow-hidden`}
+                      )} flex items-center justify-center text-white font-bold shadow-md overflow-hidden relative`}
                     >
                       {user.avatar.startsWith('http') ? (
-                        <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+                        <Image src={user.avatar} alt={user.name} fill className="object-cover" unoptimized />
                       ) : (
                         user.avatar
                       )}

@@ -491,6 +491,8 @@ export default function UserDashboard() {
 
   return (
     <div className="space-y-6">
+      <title>Scan & Earn | Trash2Treasure</title>
+      <meta name="description" content="Upload pictures of sorted waste to earn credits instantly." />
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-green-600 to-blue-600 rounded-2xl p-6 md:p-8 text-white shadow-lg">
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">Welcome back, {user && typeof user.displayName === "string" ? user.displayName.split(' ')[0] : 'User'}! 👋</h1>

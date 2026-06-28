@@ -13,6 +13,8 @@ import Footer from "../footer/page";
 export default function Homepage() {
   return (
     <>
+      <title>User Dashboard | Trash2Treasure</title>
+      <meta name="description" content="View your recycling points, upload proofs, and redeem rewards." />
       <section className="w-full px-0 md:px-4 bg-gradient-subtle min-h-screen flex flex-col">
         {/* Hero Section */}
         <motion.div

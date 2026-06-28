@@ -84,6 +84,7 @@ export default function AdminAnnouncementsPage() {
 
   return (
     <div className="w-full max-w-3xl mx-auto flex flex-col gap-6 px-1 md:px-0">
+      <title>Manage Announcements | Admin Panel</title>
       {/* Admin Panel Header */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}

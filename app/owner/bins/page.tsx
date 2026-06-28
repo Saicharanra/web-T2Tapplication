@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Image from "next/image";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/use-toast";
 import { subscribeToBins, createBin, deleteBin } from "@/lib/firebase/bins";
@@ -223,6 +224,7 @@ export default function AdminBinsPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      <title>Manage Bins | Admin Panel</title>
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -508,9 +510,9 @@ export default function AdminBinsPage() {
                     <tr key={bin.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/10 transition-colors">
                       {/* Name / Info */}
                       <td className="py-4 px-6 flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 shrink-0 bg-slate-100 flex items-center justify-center">
+                        <div className="h-10 w-10 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 shrink-0 bg-slate-100 flex items-center justify-center relative">
                           {bin.photoUrl ? (
-                            <img src={bin.photoUrl} alt="Bin" className="w-full h-full object-cover" />
+                            <Image src={bin.photoUrl} alt="Bin" fill className="object-cover" unoptimized />
                           ) : (
                             <MapPin className="h-5 w-5 text-slate-400" />
                           )}

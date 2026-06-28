@@ -109,6 +109,8 @@ export default function UserNotificationsPage() {
 
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col gap-6 px-1 md:px-0">
+      <title>Notifications | Trash2Treasure</title>
+      <meta name="description" content="Stay updated with your latest points verification alerts." />
       {/* Centered Page Header */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}

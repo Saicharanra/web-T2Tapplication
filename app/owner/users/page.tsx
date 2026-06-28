@@ -176,6 +176,7 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
+      <title>Manage Users | Admin Panel</title>
       {/* Title */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Users Management</h1>

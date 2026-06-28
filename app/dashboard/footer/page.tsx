@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import logo from "@/assets/logo.png";
 import { Facebook, Instagram, Twitter, Linkedin } from "lucide-react";
 import { Poppins } from "next/font/google";
@@ -27,15 +28,15 @@ export default function Footer() {
         >
           <div className="flex items-center justify-center md:justify-start">
          <div>
-            <img
-              src={logo.src}
+            <Image
+              src={logo}
               alt="Trash2Treasure"
               className="h-7 w-auto"
             />
           </div>
-             <h1 className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400`}>
+             <span className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400`}>
   Trash2Treasure
-</h1>
+</span>
           </div>
 
           <p className="text-gray-600 text-sm leading-relaxed max-w-sm mx-auto md:mx-0">

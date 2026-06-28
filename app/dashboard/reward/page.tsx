@@ -211,6 +211,8 @@ export default function RewardPage() {
 
   return (
     <section className="w-full relative z-10 p-2">
+      <title>Redeem Rewards | Trash2Treasure</title>
+      <meta name="description" content="Use your earned recycling credits to redeem exciting prizes." />
       {/* Reward Header Banner */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}

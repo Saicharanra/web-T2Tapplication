@@ -104,6 +104,7 @@ export default function PointsHistoryPage() {
   }
   return (
     <div className="space-y-6">
+      <title>Points History | Admin Panel</title>
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Points History</h1>
         <p className="text-gray-600 mt-1">Track all point transactions and rewards</p>

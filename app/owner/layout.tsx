@@ -4,12 +4,13 @@ import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect } from "react";
 import { Poppins } from "next/font/google";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import logo from "../../assets/logo.png";
 import {
   Menu, X, Leaf, BarChart3, Images, Users, TrendingUp,
   Coins, Settings, Circle, Loader2, Gift, ChevronRight,
-  Bell, Search, LogOut, Cpu, Map
+  Bell, Search, LogOut, Cpu, Map, Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ const navigationBase = [
   { name: "Rewards", href: "/owner/rewards", icon: Gift, section: "MAIN", description: "Manage reward catalog" },
   { name: "Users", href: "/owner/users", icon: Users, section: "MAIN", description: "User management" },
   { name: "Reports", href: "/owner/reports", icon: TrendingUp, section: "ANALYTICS", description: "Progress analytics" },
+  { name: "User Engagement", href: "/owner/engagement", icon: Clock, section: "ANALYTICS", description: "Time-spent tracking" },
   { name: "Points History", href: "/owner/points", icon: Coins, section: "ANALYTICS", description: "Point transactions" },
   { name: "ML Model Tuning", href: "/owner/model-tuning", icon: Cpu, section: "SYSTEM", description: "Fine-tune & monitor MobileNet" },
   { name: "Settings", href: "/owner/settings", icon: Settings, section: "SYSTEM", description: "System configuration" },
@@ -196,18 +198,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Button>
 
             <div>
-            <img
-              src={logo.src}
+            <Image
+              src={logo}
               alt="Trash2Treasure"
               className="h-7 w-auto"
+              priority
             />
           </div>
           <div className="flex items-center pointer-events-auto">
- <h1
-  className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-black to-emerald-700 dark:from-gray-100 dark:to-emerald-400`}
->
-  Admin Panel
-</h1>
+  <span
+   className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-black to-emerald-700 dark:from-gray-100 dark:to-emerald-400`}
+ >
+   Admin Panel
+ </span>
           </div>
           </div>
 
@@ -241,8 +244,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </div>
                 <div className="text-[11px] text-gray-400 font-medium">Administrator</div>
               </div>
-              <div className="w-9 h-9 rounded-full ring-2 ring-emerald-100 ring-offset-1 overflow-hidden bg-emerald-500 flex items-center justify-center text-white font-bold">
-                {user?.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" /> : (user?.displayName || "A").charAt(0).toUpperCase()}
+              <div className="w-9 h-9 rounded-full ring-2 ring-emerald-100 ring-offset-1 overflow-hidden bg-emerald-500 flex items-center justify-center text-white font-bold relative">
+                {user?.photoURL ? <Image src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" width={36} height={36} unoptimized /> : (user?.displayName || "A").charAt(0).toUpperCase()}
               </div>
             </div>
           </div>

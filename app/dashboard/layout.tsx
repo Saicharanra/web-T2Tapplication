@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import logo from "../../assets/logo.png";
 import { Poppins } from "next/font/google";
 import { useState, useEffect } from "react";
@@ -55,16 +56,17 @@ function DashboardHeader() {
         {/* Logo and App Name */}
         <Link href="/" className="flex items-center shrink-0 z-20 transition-transform hover:scale-105">
           <div>
-            <img
-              src={logo.src}
+            <Image
+              src={logo}
               alt="Trash2Treasure"
               className="h-7 w-auto"
+              priority
             />
           </div>
           <div className="flex items-center pointer-events-auto">
-        <h1 className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400`}>
+        <span className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400`}>
   Trash2Treasure
-</h1>
+</span>
           </div>
         </Link>
 
@@ -129,9 +131,9 @@ function DashboardHeader() {
           <NotificationBell />
 
           <Link href="/dashboard/profile" className="p-0.5 rounded-full bg-gradient-to-tr from-green-400 to-blue-500 shadow-lg flex items-center justify-center transition-transform hover:scale-105 pointer-events-auto">
-            <div className="bg-white dark:bg-[#0B1527] rounded-full p-0.5 flex items-center justify-center h-[34px] w-[34px] sm:h-[40px] sm:w-[40px] overflow-hidden">
+            <div className="bg-white dark:bg-[#0B1527] rounded-full p-0.5 flex items-center justify-center h-[34px] w-[34px] sm:h-[40px] sm:w-[40px] overflow-hidden relative">
               {user?.photoURL ? (
-                <img src={user.photoURL} alt="Profile" className="h-full w-full object-cover" />
+                <Image src={user.photoURL} alt="Profile" className="h-full w-full object-cover" width={40} height={40} unoptimized />
               ) : (
                 <User className="h-5 w-5 text-gray-500" />
               )}
@@ -221,6 +223,36 @@ export default function DashboardLayout({
       handleFirstLoginNotification();
     }
   }, [user]);
+
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const startTime = Date.now();
+    const currentPath = pathname;
+
+    return () => {
+      const timeSpent = Math.round((Date.now() - startTime) / 1000);
+      if (timeSpent < 1) return;
+
+      import("firebase/firestore").then(async ({ collection, addDoc, serverTimestamp }) => {
+        try {
+          const { db } = await import("@/lib/firebase-client");
+          await addDoc(collection(db, "analytics"), {
+            userId: user.uid,
+            userName: user.displayName || user.email || "Anonymous",
+            userEmail: user.email || "",
+            pathname: currentPath,
+            timeSpent: timeSpent,
+            timestamp: serverTimestamp(),
+          });
+        } catch (err) {
+          console.error("⚠️ Failed to write user engagement tracking log:", err);
+        }
+      });
+    };
+  }, [pathname, user]);
 
   return (
     <PointsProvider>
