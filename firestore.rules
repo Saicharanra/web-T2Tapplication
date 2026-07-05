@@ -78,5 +78,14 @@ service cloud.firestore {
       // Client-side updates/deletes are only allowed for Admins
       allow update, delete: if request.auth != null && isAdmin();
     }
+
+    // --- ANALYTICS COLLECTION ---
+    match /analytics/{analyticsId} {
+      // Authenticated users can write their own analytics logs
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Only admins can read engagement logs
+      allow read: if request.auth != null && isAdmin();
+      allow update, delete: if false;
+    }
   }
 }
