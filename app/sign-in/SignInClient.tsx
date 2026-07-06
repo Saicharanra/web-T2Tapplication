@@ -5,7 +5,7 @@ import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPa
 import { auth } from "@/lib/firebase-client";
 import { createUser, getUser } from "@/lib/firebase-db";
 import { useRouter } from "next/navigation";
-import { Leaf, Mail, Lock, Loader2, ArrowRight} from "lucide-react";
+import { Leaf, Mail, Lock, Loader2, ArrowRight, Eye, EyeOff, X } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -15,6 +15,7 @@ export default function SignInClient() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSuccess, setForgotSuccess] = useState("");
@@ -139,6 +140,15 @@ export default function SignInClient() {
 
       {/* Right Content Panel */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-12 relative">
+        {/* Close Button */}
+        <Link 
+          href="/" 
+          className="absolute top-6 right-6 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-all shadow-lg backdrop-blur-sm z-50 group animate-in fade-in duration-300"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+        </Link>
+
         <div className="absolute inset-0 lg:hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-[80%] h-[50%] bg-teal-500/10 blur-[120px] rounded-full" />
         </div>
@@ -190,7 +200,7 @@ export default function SignInClient() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="name@company.com"
+                      placeholder="default@gmail.com"
                       className="w-full pl-12 pr-4 py-3.5 bg-slate-900/50 border border-white/10 rounded-2xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500 transition-all outline-none"
                     />
                   </div>
@@ -217,13 +227,25 @@ export default function SignInClient() {
                       <Lock className="w-5 h-5" />
                     </div>
                     <input
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-12 pr-4 py-3.5 bg-slate-900/50 border border-white/10 rounded-2xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500 transition-all outline-none"
+                      className="w-full pl-12 pr-12 py-3.5 bg-slate-900/50 border border-white/10 rounded-2xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500 transition-all outline-none"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-teal-400 focus:text-teal-400 transition-colors cursor-pointer focus:outline-none"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -338,7 +360,7 @@ export default function SignInClient() {
                       required
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="name@company.com"
+                      placeholder="default@gmail.com"
                       className="w-full pl-12 pr-4 py-3.5 bg-slate-900/50 border border-white/10 rounded-2xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500 transition-all outline-none"
                     />
                   </div>
