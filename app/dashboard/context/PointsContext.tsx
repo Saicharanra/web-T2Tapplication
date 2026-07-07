@@ -1,7 +1,7 @@
 "use client";
 
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 
 interface PointsContextType {
@@ -17,10 +17,20 @@ export function PointsProvider({ children }: { children: ReactNode }) {
   const [points, setPoints] = useState<number>(0);
   const [pointsLoading, setPointsLoading] = useState(true);
   const { user } = useAuth();
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const refreshPoints = useCallback(async () => {
     if (!user) {
-      setPointsLoading(false);
+      if (isMounted.current) {
+        setPointsLoading(false);
+      }
       return;
     }
 
@@ -34,16 +44,24 @@ export function PointsProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        setPoints(data.totalPoints ?? 0);
+        if (isMounted.current) {
+          setPoints(data.totalPoints ?? 0);
+        }
       } else {
         console.warn('Backend API unavailable. Points will show 0 until database is connected.');
-        setPoints(0);
+        if (isMounted.current) {
+          setPoints(0);
+        }
       }
     } catch (error) {
       console.warn('Backend API unavailable or network error.', error);
-      setPoints(0);
+      if (isMounted.current) {
+        setPoints(0);
+      }
     } finally {
-      setPointsLoading(false);
+      if (isMounted.current) {
+        setPointsLoading(false);
+      }
     }
   }, [user]);
 

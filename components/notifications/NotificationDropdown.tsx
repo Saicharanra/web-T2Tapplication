@@ -28,7 +28,7 @@ export function NotificationDropdown({
       {/* Overlay to close the dropdown when clicking outside */}
       <div className="fixed inset-0 z-40" onClick={onClose} />
 
-      <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-3 duration-200">
+      <div className="fixed top-16 left-4 right-4 mt-3 sm:absolute sm:top-auto sm:left-auto sm:right-0 sm:w-96 sm:mt-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-3 duration-200">
         {/* Dropdown Header */}
         <div className="px-4.5 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
           <div>

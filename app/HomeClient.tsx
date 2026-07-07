@@ -38,25 +38,34 @@ export default function HomeClient() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Fix: define fetchUserRole with useCallback to prevent useEffect issues
-  const fetchUserRole = useCallback(async () => {
-    try {
-      const res = await fetchWithAuth('/api/users/profile');
-      if (res.ok) {
-        const data = await res.json();
-        setUserRole(data.role ?? null);
-      } else {
-        setUserRole(null);
-      }
-    } catch (err) {
-      console.error("Error fetching user role:", err);
-      setUserRole(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchUserRole = async () => {
+      try {
+        const res = await fetchWithAuth('/api/users/profile');
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            setUserRole(data.role ?? null);
+          }
+        } else {
+          if (isMounted) {
+            setUserRole(null);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching user role:", err);
+        if (isMounted) {
+          setUserRole(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
     if (isSignedIn) {
       setLoading(true);
       fetchUserRole();
@@ -64,7 +73,11 @@ export default function HomeClient() {
       setUserRole(null);
       setLoading(false);
     }
-  }, [isSignedIn, fetchUserRole]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isSignedIn]);
 
   // Ensure all stats have a visible box by checking their data is correct and providing a fallback
   const stats = [
@@ -295,7 +308,7 @@ export default function HomeClient() {
       <section className="py-16 px-4 -mt-12 relative z-10">
         <div className="container mx-auto">
           <motion.div
-            className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
+            className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
             variants={containerVariants}
             initial="hidden"
             whileInView="visible"

@@ -64,7 +64,7 @@ function DashboardHeader() {
             />
           </div>
           <div className="flex items-center pointer-events-auto">
-        <span className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400`}>
+        <span className={`${poppins.className} font-bold text-lg sm:text-xl lg:text-2xl leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400 hidden sm:inline-block`}>
   Trash2Treasure
 </span>
           </div>

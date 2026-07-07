@@ -616,7 +616,7 @@ export default function ProfilePage() {
       </Card>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-white/60 backdrop-blur-md border border-white/50 hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
           <CardContent className="p-6">
             <div className="text-center">
@@ -770,7 +770,7 @@ export default function ProfilePage() {
                         {sub.status}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <p className="text-xs text-gray-500 flex items-center gap-1" suppressHydrationWarning={true}>
                         <Calendar className="h-3 w-3" />
                         {new Date(sub.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

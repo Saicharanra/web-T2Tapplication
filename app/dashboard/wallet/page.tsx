@@ -1,7 +1,7 @@
 "use client";
 
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -39,8 +39,14 @@ const rewards = [
 export default function WalletPage() {
   const { toast } = useToast();
   const { points: globalPoints } = usePoints();
-  // Remove unused variable 'user' to fix lint error
-  //const { user } = useUser();
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -66,18 +72,24 @@ export default function WalletPage() {
       const data = await response.json();
       console.log('✅ Wallet data received:', data);
 
-      setWalletData(data);
+      if (isMounted.current) {
+        setWalletData(data);
+      }
 
     } catch (error) {
       console.error('❌ Error fetching wallet data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load wallet data. Please try again.",
-        variant: "destructive",
-      });
+      if (isMounted.current) {
+        toast({
+          title: "Error",
+          description: "Failed to load wallet data. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMounted.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [toast]);
 
