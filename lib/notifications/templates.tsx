@@ -522,3 +522,30 @@ export function AnnouncementEmail({
   `;
   return getEmailLayout("Announcements & Updates 📢", content);
 }
+
+// 14. Email Verification OTP Email
+export function OTPEmail({ name, otp }: { name: string; otp: string }): string {
+  const content = `
+    <h2 class="heading">Verify Your Email Address</h2>
+    <p class="text">
+      Hello ${name},
+    </p>
+    <p class="text">
+      Thank you for signing up for Trash2Treasure! To complete your registration, please use the following One-Time Password (OTP) to verify your email address:
+    </p>
+    <div style="text-align: center; margin: 30px 0;">
+      <span style="display: inline-block; background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 16px; padding: 15px 30px; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #059669; font-family: monospace;">${otp}</span>
+    </div>
+    <p class="text" style="font-size: 13px; color: #64748b;">
+      This OTP is valid for <strong>5 minutes</strong>. For security reasons, please do not share this code with anyone.
+    </p>
+    <p class="text" style="font-size: 12px; color: #94a3b8; margin-top: 20px;">
+      If you did not request this verification, you can safely ignore this email.
+    </p>
+    <div class="footer">
+      Trash2Treasure Security Team
+    </div>
+  `;
+  return getEmailLayout("Email Verification OTP 🔑", content);
+}
+

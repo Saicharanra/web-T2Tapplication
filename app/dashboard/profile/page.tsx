@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mail, Award, Calendar, Trophy, LogOut, Recycle } from "lucide-react";
+import { Mail, Award, Calendar, Trophy, LogOut, Recycle, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { signOut as firebaseSignOut } from "firebase/auth";
 import { auth } from "@/lib/firebase-client";
@@ -71,6 +71,8 @@ export default function ProfilePage() {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [submissionsLoading, setSubmissionsLoading] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
 
   // Profile update and password update states
   const [profileName, setProfileName] = useState("");
@@ -248,6 +250,36 @@ export default function ProfilePage() {
         variant: "destructive",
       });
       setSigningOut(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      setDeletingAccount(true);
+      const res = await fetchWithAuth("/api/users/delete", {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to delete account");
+      }
+
+      await firebaseSignOut(auth);
+
+      toast({
+        title: "🗑️ Account Deleted",
+        description: "Your account and data have been successfully deleted.",
+      });
+      router.push("/");
+    } catch (err: any) {
+      console.error("Failed to delete account:", err);
+      toast({
+        title: "❌ Deletion Failed",
+        description: err.message || "Failed to delete account. Please try again.",
+        variant: "destructive",
+      });
+      setDeletingAccount(false);
     }
   };
 
@@ -594,6 +626,62 @@ export default function ProfilePage() {
                       </Button>
                     </div>
                   </form>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={showDeleteAccountModal} onOpenChange={setShowDeleteAccountModal}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="gap-2 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/30 dark:text-rose-455 dark:hover:bg-rose-950/20"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Account
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md rounded-3xl bg-glass border border-white/50 dark:border-slate-800/50 backdrop-blur-xl">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl font-bold text-rose-600 dark:text-rose-450 flex items-center gap-2">
+                      ⚠️ Delete Your Account?
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="py-4 space-y-4">
+                    <p className="text-sm text-gray-700 dark:text-slate-350 leading-relaxed">
+                      This action is <strong className="text-rose-600 dark:text-rose-450">permanent and cannot be undone</strong>. 
+                      All your recycling submissions, points history, claimed rewards, and notifications will be deleted forever.
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      Are you absolutely sure you want to proceed?
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800/60 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowDeleteAccountModal(false)}
+                      className="rounded-xl"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleDeleteAccount}
+                      className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold shadow-md gap-2"
+                      disabled={deletingAccount}
+                    >
+                      {deletingAccount ? (
+                        <>
+                          <Recycle className="h-4 w-4 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4" />
+                          Confirm Delete
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </DialogContent>
               </Dialog>
 
