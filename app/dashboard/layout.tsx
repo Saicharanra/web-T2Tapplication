@@ -5,7 +5,7 @@ import Image from "next/image";
 import logo from "../../assets/logo.png";
 import { Poppins } from "next/font/google";
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
   Camera,
@@ -184,7 +184,14 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/sign-in");
+    }
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     if (user) {
@@ -253,6 +260,19 @@ export default function DashboardLayout({
       });
     };
   }, [pathname, user]);
+
+  if (authLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-subtle">
+        <Recycle className="h-10 w-10 animate-spin text-green-600 mb-4" />
+        <p className="text-gray-500 text-sm font-medium">Verifying session...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <PointsProvider>

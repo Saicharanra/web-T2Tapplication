@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -506,198 +507,208 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-            <div className="w-full sm:w-auto flex flex-wrap justify-center sm:justify-end gap-3 mt-4 sm:mt-0 shrink-0">
+            <div className="w-full lg:w-auto grid grid-cols-2 lg:flex lg:flex-row gap-2.5 mt-6 lg:mt-0 shrink-0">
               {/* Edit Profile Dialog */}
-              <Dialog open={showEditProfileModal} onOpenChange={setShowEditProfileModal}>
-                <DialogTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    className="bg-white/10 hover:bg-white/20 border-white/20 hover:border-white/30 text-white gap-2 rounded-xl transition-all"
-                    onClick={() => {
-                      setProfileName(userData?.name || user?.displayName || "");
-                      setProfileLocation(userData?.location || "Not specified");
-                    }}
-                  >
-                    ✏️ Edit Profile
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-white/95 backdrop-blur-xl border-white/50 rounded-[2rem] max-w-md p-6 shadow-2xl">
-                  <DialogHeader>
-                    <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                      👤 Edit Profile Details
-                    </DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleUpdateProfile} className="space-y-4 mt-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Full Name</label>
-                      <Input
-                        value={profileName}
-                        onChange={(e) => setProfileName(e.target.value)}
-                        placeholder="Eco Warrior"
-                        required
-                        className="rounded-xl border-gray-200"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Location</label>
-                      <Input
-                        value={profileLocation}
-                        onChange={(e) => setProfileLocation(e.target.value)}
-                        placeholder="e.g. Bangalore, India"
-                        required
-                        className="rounded-xl border-gray-200"
-                      />
-                    </div>
-                    <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        onClick={() => setShowEditProfileModal(false)}
-                        className="rounded-xl"
-                      >
-                        Cancel
-                      </Button>
-                      <Button 
-                        type="submit" 
-                        className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-md"
-                        disabled={updatingProfile}
-                      >
-                        {updatingProfile ? "Saving..." : "Save Changes"}
-                      </Button>
-                    </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }} className="w-full lg:w-auto">
+                <Dialog open={showEditProfileModal} onOpenChange={setShowEditProfileModal}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      className="w-full bg-white/10 hover:bg-white/20 border-white/20 hover:border-white/30 text-white gap-2 rounded-xl transition-all text-xs sm:text-sm px-2.5 py-5 sm:py-2 h-auto"
+                      onClick={() => {
+                        setProfileName(userData?.name || user?.displayName || "");
+                        setProfileLocation(userData?.location || "Not specified");
+                      }}
+                    >
+                      ✏️ Edit Profile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-white/95 backdrop-blur-xl border-white/50 rounded-[2rem] max-w-md p-6 shadow-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                        👤 Edit Profile Details
+                      </DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleUpdateProfile} className="space-y-4 mt-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Full Name</label>
+                        <Input
+                          value={profileName}
+                          onChange={(e) => setProfileName(e.target.value)}
+                          placeholder="Eco Warrior"
+                          required
+                          className="rounded-xl border-gray-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Location</label>
+                        <Input
+                          value={profileLocation}
+                          onChange={(e) => setProfileLocation(e.target.value)}
+                          placeholder="e.g. Bangalore, India"
+                          required
+                          className="rounded-xl border-gray-200"
+                        />
+                      </div>
+                      <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => setShowEditProfileModal(false)}
+                          className="rounded-xl"
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          type="submit" 
+                          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-md"
+                          disabled={updatingProfile}
+                        >
+                          {updatingProfile ? "Saving..." : "Save Changes"}
+                        </Button>
+                      </div>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </motion.div>
 
               {/* Change Password Dialog */}
-              <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
-                <DialogTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    className="bg-white/10 hover:bg-white/20 border-white/20 hover:border-white/30 text-white gap-2 rounded-xl transition-all"
-                  >
-                    🔒 Change Password
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-white/95 backdrop-blur-xl border-white/50 rounded-[2rem] max-w-md p-6 shadow-2xl">
-                  <DialogHeader>
-                    <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                      🔒 Update Password
-                    </DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleChangePassword} className="space-y-4 mt-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">New Password</label>
-                      <Input
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Min 6 characters"
-                        required
-                        className="rounded-xl border-gray-200"
-                      />
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }} className="w-full lg:w-auto">
+                <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      className="w-full bg-white/10 hover:bg-white/20 border-white/20 hover:border-white/30 text-white gap-2 rounded-xl transition-all text-xs sm:text-sm px-2.5 py-5 sm:py-2 h-auto"
+                    >
+                      🔒 Password
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-white/95 backdrop-blur-xl border-white/50 rounded-[2rem] max-w-md p-6 shadow-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                        🔒 Update Password
+                      </DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleChangePassword} className="space-y-4 mt-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">New Password</label>
+                        <Input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Min 6 characters"
+                          required
+                          className="rounded-xl border-gray-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Confirm New Password</label>
+                        <Input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Re-enter new password"
+                          required
+                          className="rounded-xl border-gray-200"
+                        />
+                      </div>
+                      <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => setShowChangePasswordModal(false)}
+                          className="rounded-xl"
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          type="submit" 
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold shadow-md"
+                          disabled={changingPassword}
+                        >
+                          {changingPassword ? "Updating..." : "Change Password"}
+                        </Button>
+                      </div>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </motion.div>
+
+              {/* Delete Account Dialog */}
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }} className="w-full lg:w-auto">
+                <Dialog open={showDeleteAccountModal} onOpenChange={setShowDeleteAccountModal}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/30 dark:text-rose-455 dark:hover:bg-rose-950/20 text-xs sm:text-sm px-2.5 py-5 sm:py-2 h-auto bg-white/10 dark:bg-transparent"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md rounded-3xl bg-glass border border-white/50 dark:border-slate-800/50 backdrop-blur-xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-bold text-rose-600 dark:text-rose-455 flex items-center gap-2">
+                        ⚠️ Delete Your Account?
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                      <p className="text-sm text-gray-700 dark:text-slate-350 leading-relaxed">
+                        This action is <strong className="text-rose-600 dark:text-rose-455">permanent and cannot be undone</strong>. 
+                        All your recycling submissions, points history, claimed rewards, and notifications will be deleted forever.
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                        Are you absolutely sure you want to proceed?
+                      </p>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Confirm New Password</label>
-                      <Input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Re-enter new password"
-                        required
-                        className="rounded-xl border-gray-200"
-                      />
-                    </div>
-                    <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        onClick={() => setShowChangePasswordModal(false)}
+                    <div className="flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800/60 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowDeleteAccountModal(false)}
                         className="rounded-xl"
                       >
                         Cancel
                       </Button>
-                      <Button 
-                        type="submit" 
-                        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold shadow-md"
-                        disabled={changingPassword}
+                      <Button
+                        type="button"
+                        onClick={handleDeleteAccount}
+                        className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold shadow-md gap-2"
+                        disabled={deletingAccount}
                       >
-                        {changingPassword ? "Updating..." : "Change Password"}
+                        {deletingAccount ? (
+                          <>
+                            <Recycle className="h-4 w-4 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4" />
+                            Confirm Delete
+                          </>
+                        )}
                       </Button>
                     </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              </motion.div>
 
-              <Dialog open={showDeleteAccountModal} onOpenChange={setShowDeleteAccountModal}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="gap-2 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/30 dark:text-rose-455 dark:hover:bg-rose-950/20"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Account
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md rounded-3xl bg-glass border border-white/50 dark:border-slate-800/50 backdrop-blur-xl">
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-bold text-rose-600 dark:text-rose-450 flex items-center gap-2">
-                      ⚠️ Delete Your Account?
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="py-4 space-y-4">
-                    <p className="text-sm text-gray-700 dark:text-slate-350 leading-relaxed">
-                      This action is <strong className="text-rose-600 dark:text-rose-450">permanent and cannot be undone</strong>. 
-                      All your recycling submissions, points history, claimed rewards, and notifications will be deleted forever.
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-slate-400">
-                      Are you absolutely sure you want to proceed?
-                    </p>
-                  </div>
-                  <div className="flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800/60 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setShowDeleteAccountModal(false)}
-                      className="rounded-xl"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handleDeleteAccount}
-                      className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold shadow-md gap-2"
-                      disabled={deletingAccount}
-                    >
-                      {deletingAccount ? (
-                        <>
-                          <Recycle className="h-4 w-4 animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="h-4 w-4" />
-                          Confirm Delete
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-
-              <Button
-                variant="destructive"
-                className="gap-2 rounded-xl"
-                onClick={handleLogout}
-                disabled={signingOut}
-              >
-                {signingOut ? (
-                  <Recycle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <LogOut className="h-4 w-4" />
-                )}
-                {signingOut ? 'Logging out...' : 'Logout'}
-              </Button>
+              {/* Logout Button */}
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }} className="w-full lg:w-auto">
+                <Button
+                  variant="destructive"
+                  className="w-full gap-2 rounded-xl text-xs sm:text-sm px-2.5 py-5 sm:py-2 h-auto"
+                  onClick={handleLogout}
+                  disabled={signingOut}
+                >
+                  {signingOut ? (
+                    <Recycle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LogOut className="h-4 w-4" />
+                  )}
+                  {signingOut ? 'Logging out...' : 'Logout'}
+                </Button>
+              </motion.div>
             </div>
           </div>
         </CardContent>
@@ -831,9 +842,9 @@ export default function ProfilePage() {
                 <div 
                   key={sub.id} 
                   onClick={() => setSelectedSubmission(sub)}
-                  className="flex items-center gap-4 p-4 rounded-2xl bg-white/50 border border-white shadow-sm hover:shadow-md transition-all group cursor-pointer"
+                  className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-white/50 border border-white shadow-sm hover:shadow-md transition-all group cursor-pointer"
                 >
-                  <div className="h-16 w-16 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-gray-100 relative">
+                  <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-gray-100 relative">
                     <Image 
                       src={sub.imageUrl} 
                       alt={sub.wasteType} 
@@ -842,12 +853,12 @@ export default function ProfilePage() {
                       unoptimized
                     />
                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Eye className="text-white h-5 w-5" />
+                      <Eye className="text-white h-4 w-4" />
                     </div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <h4 className="font-bold text-gray-900 truncate pr-2">
+                      <h4 className="font-bold text-gray-900 text-sm sm:text-base truncate pr-2">
                         {sub.wasteType}
                       </h4>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -869,17 +880,19 @@ export default function ProfilePage() {
                             +{sub.pointsAwarded} pts
                           </p>
                         )}
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="h-7 px-3 text-[10px] border-green-200 text-green-700 hover:bg-green-50 rounded-full"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedSubmission(sub);
-                          }}
-                        >
-                          View Photo
-                        </Button>
+                        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-7 px-3 text-[10px] border-green-200 text-green-700 hover:bg-green-50 rounded-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSubmission(sub);
+                            }}
+                          >
+                            View Photo
+                          </Button>
+                        </motion.div>
                       </div>
                     </div>
                   </div>
