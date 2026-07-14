@@ -301,7 +301,7 @@ export default function PointsHistoryPage() {
                             </span>
                           </div>
                         </td>
-                        <td className="py-4 px-6 font-bold text-gray-900">🪙 {user.points}</td>
+                        <td className="py-4 px-6 font-bold text-gray-900">💰 {user.points}</td>
                         <td className="py-4 px-6 text-gray-600 font-medium">
                           {userStats.submissionsCount} submissions
                         </td>
