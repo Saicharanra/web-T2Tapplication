@@ -392,7 +392,7 @@ export default function PointsHistoryPage() {
                         Points Balance
                       </span>
                       <span className="text-base font-bold text-gray-900 flex items-center gap-1 mt-1">
-                        🪙 {selectedUser.points}
+                         🪙 {selectedUser.points}
                       </span>
                     </div>
 
