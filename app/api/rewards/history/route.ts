@@ -53,7 +53,12 @@ export async function GET(req: NextRequest) {
 
       return {
         id: data.id,
+        reward_id: data.reward_id,
         name: rewardData ? rewardData.title : "Unknown Reward",
+        description: rewardData ? rewardData.description : "No description available",
+        image_url: rewardData ? rewardData.image_url : "",
+        category: rewardData ? rewardData.category : "General",
+        points_required: rewardData ? rewardData.points_required : 0,
         date: (data.redeemed_at?.toDate?.() || new Date(data.redeemed_at)).toISOString().split("T")[0],
         code: data.code || `RWD-${data.id.substring(0, 6).toUpperCase()}`,
       };

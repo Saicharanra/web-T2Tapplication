@@ -88,10 +88,12 @@ export async function POST(req: NextRequest) {
 
       // Record redemption
       const redemptionRef = adminDb.collection("redemptions").doc();
+      const code = `RWD-${redemptionRef.id.substring(0, 6).toUpperCase()}`;
       transaction.set(redemptionRef, {
         reward_id: reward_id,
         user_id: userId,
         redeemed_at: new Date(),
+        code: code,
       });
 
       // Record in PointsHistory
@@ -107,6 +109,7 @@ export async function POST(req: NextRequest) {
       return {
         newPoints: (user.points || 0) - reward.points_required,
         redemption_id: redemptionRef.id,
+        code: code,
         reward: {
           title: reward.title,
           points_required: reward.points_required,

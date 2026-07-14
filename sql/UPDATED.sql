@@ -2,6 +2,28 @@
 -- 🔥 COMPLETE DATABASE (UPDATED PRODUCTION)
 -- ============================================
 
+-- ============================================
+-- 📦 STORAGE PROVIDERS & DIRECTORY STRUCTURES
+-- ============================================
+--
+-- 1. Firebase Storage:
+--    - Used for: Recycling bin photographs (e.g., when users add or verify bin locations).
+--    - Directory/Path structure: `bins/${userId}_${timestamp}_${cleanFileName}`
+--    - Associated functions: `uploadBinImage` in `lib/firebase/storage.ts`
+--
+-- 2. Cloudinary:
+--    - Used for: Waste scan submissions / proof of recycling uploads.
+--    - Directory/Path structure: `submissions/${userId}/${submissionId}`
+--    - Associated API route: `app/api/upload/route.ts`
+--
+-- 3. Database field mappings (e.g., in "Submission" table):
+--    - "imageUrl": The public HTTP download URL of the image.
+--    - "imagePath": The folder/file path or public ID in the storage provider.
+--    - "imageSize": The file size in bytes.
+--    - "imageMimeType": The MIME type (e.g., 'image/jpeg', 'image/png').
+--
+-- ============================================
+
 -- Enable UUID
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -125,15 +147,17 @@ CREATE TABLE IF NOT EXISTS "RewardCode" (
 
 -- ============================================
 -- 📜 REDEMPTION HISTORY
+-- (Maps to Firestore 'redemptions' collection)
 -- ============================================
 CREATE TABLE IF NOT EXISTS "RewardRedemption" (
   redemption_id SERIAL PRIMARY KEY,
 
-  user_id TEXT REFERENCES "User"(id) ON DELETE CASCADE,
-  reward_id INTEGER REFERENCES "Reward"(reward_id),
-  code_id INTEGER REFERENCES "RewardCode"(id),
+  user_id TEXT REFERENCES "User"(id) ON DELETE CASCADE, -- Firestore: user_id field
+  reward_id INTEGER REFERENCES "Reward"(reward_id),     -- Firestore: reward_id field
+  code_id INTEGER REFERENCES "RewardCode"(id),          -- Optional link to pre-generated codes
+  code TEXT,                                            -- Added: The actual redemption code (e.g., 'RWD-A1B2C3')
 
-  redeemed_at TIMESTAMP DEFAULT NOW(),
+  redeemed_at TIMESTAMP DEFAULT NOW(),                  -- Firestore: redeemed_at field (timestamp)
   expires_at TIMESTAMP,
   status TEXT DEFAULT 'ACTIVE'
     CHECK (status IN ('ACTIVE','EXPIRED','USED')),

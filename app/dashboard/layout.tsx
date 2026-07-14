@@ -104,7 +104,7 @@ function DashboardHeader() {
             ? 'bg-white/60 dark:bg-slate-800/60 border border-gray-200/50 dark:border-slate-700/50 shadow-sm backdrop-blur-md'
             : 'bg-white/90 dark:bg-[#0B1527]/90 border border-gray-200/50 dark:border-blue-900/40 shadow-lg backdrop-blur-md'
             }`}>
-            <span className="text-lg sm:text-xl leading-none">🪙</span>
+            <span className="text-lg sm:text-xl leading-none">💰</span>
             <div className="flex flex-col items-center justify-center relative min-w-[2rem] sm:min-w-[3rem]">
               {pointsLoading ? (
                 <Recycle className="h-4 w-4 animate-spin text-gray-500 dark:text-gray-400" />

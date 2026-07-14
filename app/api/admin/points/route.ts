@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
 
       return {
         id: sub.id,
+        userId: sub.userId || "",
         user: userName,
         role: userData?.role || "USER",
         email: userData?.email || "",
@@ -94,6 +95,19 @@ export async function GET(req: NextRequest) {
         date: sub.updatedAt?.toDate?.()?.toLocaleDateString() || new Date(sub.updatedAt).toLocaleDateString()
       };
     });
+
+    const uniqueUsersList = Array.from(userMap.entries()).map(([id, data]) => ({
+      id,
+      name: data.name || "Unknown",
+      email: data.email || "",
+      imageUrl: data.imageUrl || null,
+      role: data.role || "USER",
+      level: data.level || "BRONZE",
+      points: data.points || 0,
+      status: data.status || "ACTIVE",
+      location: data.location || "Not specified",
+      joinedAt: data.joinedAt?.toDate?.()?.toLocaleDateString() || (data.joinedAt ? new Date(data.joinedAt).toLocaleDateString() : "Unknown")
+    }));
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -120,7 +134,8 @@ export async function GET(req: NextRequest) {
         topEarner,
         averagePerSubmission: avgPerSub
       },
-      transactions: transactions.slice(0, 50)
+      users: uniqueUsersList,
+      transactions: transactions
     });
   } catch (error: any) {
     console.error("💥 Error in admin points route:", error);

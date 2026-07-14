@@ -63,8 +63,31 @@ export default function RewardPage() {
   const [isCelebrating, setIsCelebrating] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
 
-  const [history, setHistory] = useState<{ id: string; name: string; date: string; code: string }[]>([]);
+  const [history, setHistory] = useState<{
+    id: string;
+    reward_id: string;
+    name: string;
+    description: string;
+    image_url: string;
+    category: string;
+    points_required: number;
+    date: string;
+    code: string;
+  }[]>([]);
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
+
+  const [selectedRedemption, setSelectedRedemption] = useState<{
+    id: string;
+    reward_id: string;
+    name: string;
+    description: string;
+    image_url: string;
+    category: string;
+    points_required: number;
+    date: string;
+    code: string;
+  } | null>(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
 
   /* ──────────── Fetch Rewards from API ──────────── */
 
@@ -104,11 +127,15 @@ export default function RewardPage() {
 
   /* ──────────── Computed values ──────────── */
 
-  const getNextRewardCredits = (credits: number) => {
-    const upcoming = rewards.filter((r) => r.points_required > credits).sort((a, b) => a.points_required - b.points_required);
+  const unclaimedRewards = rewards.filter(
+    (reward) => !history.some((h) => h.reward_id === reward.reward_id)
+  );
+
+  const getNextRewardCredits = (credits: number, rewardList: Reward[]) => {
+    const upcoming = rewardList.filter((r) => r.points_required > credits).sort((a, b) => a.points_required - b.points_required);
     return upcoming.length > 0 ? upcoming[0].points_required : credits + 100;
   };
-  const nextRewardCredits = getNextRewardCredits(userCredits);
+  const nextRewardCredits = getNextRewardCredits(userCredits, unclaimedRewards);
   const creditsToNext = Math.max(0, nextRewardCredits - userCredits);
 
   /* ──────────── Redeem Handler ──────────── */
@@ -142,8 +169,7 @@ export default function RewardPage() {
       setPoints(data.newPoints);
 
       // Extract real redemption ID
-      const realId = data.redemption_id || Math.floor(Math.random() * 10000);
-      const code = `RWD-${String(realId).padStart(6, '0')}`;
+      const code = data.code || `RWD-${String(data.redemption_id || Math.floor(Math.random() * 10000)).padStart(6, '0')}`;
 
       setRedeemedReward(reward);
       setRedemptionCode(code);
@@ -270,7 +296,7 @@ export default function RewardPage() {
             Available Premium Rewards
           </h2>
           <div className="flex items-center text-sm text-gray-500 gap-2 font-medium">
-            <span>{rewards.length} rewards available</span>
+            <span>{unclaimedRewards.length} rewards available</span>
           </div>
         </div>
         <Button
@@ -284,7 +310,7 @@ export default function RewardPage() {
       </div>
 
       {/* Rewards Grid */}
-      {rewards.length === 0 ? (
+      {unclaimedRewards.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl p-16 text-center shadow-sm">
           <Gift className="h-16 w-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-500 mb-2">No rewards available right now</h3>
@@ -292,7 +318,7 @@ export default function RewardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {rewards.map((reward, i) => {
+          {unclaimedRewards.map((reward, i) => {
             const isImageUrl = reward.image_url.startsWith("http") || reward.image_url.startsWith("/");
             const canAfford = userCredits >= reward.points_required;
 
@@ -442,7 +468,14 @@ export default function RewardPage() {
           <div className="mt-4 space-y-4 pb-4">
             {history.length > 0 ? (
               history.map((item) => (
-                <div key={item.id} className="bg-white border border-gray-100 shadow-sm p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-emerald-200 hover:shadow-md transition-all">
+                <div
+                  key={item.id}
+                  onClick={() => {
+                    setSelectedRedemption(item);
+                    setIsDetailsDialogOpen(true);
+                  }}
+                  className="bg-white border border-gray-100 shadow-sm p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-emerald-200 hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer text-left"
+                >
                   <div>
                     <h4 className="font-bold text-gray-900 text-lg">{item.name}</h4>
                     <p className="text-sm text-gray-500 font-medium flex items-center gap-1">Claimed on {item.date}</p>
@@ -460,6 +493,90 @@ export default function RewardPage() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Redemption Details Dialog */}
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-md text-center border-emerald-100 border-2 shadow-2xl overflow-hidden rounded-2xl">
+          <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-eco" />
+          
+          {selectedRedemption && (
+            <>
+              <DialogHeader className="pt-6">
+                <div className="relative w-24 h-24 mx-auto mb-4 bg-gradient-to-tr from-gray-50 to-gray-100 flex items-center justify-center rounded-2xl shadow-inner border border-gray-100 overflow-hidden">
+                  {selectedRedemption.image_url && (selectedRedemption.image_url.startsWith("http") || selectedRedemption.image_url.startsWith("/")) ? (
+                    <Image
+                      src={selectedRedemption.image_url}
+                      alt={selectedRedemption.name}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <span className="text-5xl">{selectedRedemption.image_url || "🎁"}</span>
+                  )}
+                </div>
+                <DialogTitle className="text-2xl font-extrabold text-center text-gray-900">
+                  {selectedRedemption.name}
+                </DialogTitle>
+                <div className="flex justify-center mt-1">
+                  <span className={`${getCategoryColor(selectedRedemption.category)} text-white px-3 py-1 text-xs font-bold rounded-full shadow-sm`}>
+                    {selectedRedemption.category}
+                  </span>
+                </div>
+                <DialogDescription className="text-center text-sm mt-3 font-medium text-gray-500 px-2 leading-relaxed">
+                  {selectedRedemption.description}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="bg-gray-50 border border-gray-200 p-5 rounded-xl mt-4">
+                <p className="text-xs text-gray-500 mb-2 font-bold uppercase tracking-widest">Redemption Code</p>
+                <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-100 shadow-sm">
+                  <p className="text-2xl font-mono font-bold text-gray-900 tracking-wider flex-1 text-center select-all">
+                    {selectedRedemption.code}
+                  </p>
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedRedemption.code);
+                      toast({
+                        title: "Copied!",
+                        description: "Redemption code copied to clipboard.",
+                      });
+                    }}
+                    className="h-10 w-10 p-0 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H5.25m11.9-3.664A2.251 2.251 0 0015 2.25h-3a2.251 2.251 0 00-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M19.5 7.875c0-.621-.504-1.125-1.125-1.125H12.75c-.621 0-1.125.504-1.125 1.125v12.375c0 .621.504 1.125 1.125 1.125h5.625c.621 0 1.125-.504 1.125-1.125V7.875z"
+                      />
+                    </svg>
+                  </Button>
+                </div>
+                <div className="flex justify-between items-center mt-3 text-xs text-gray-400 font-medium px-1">
+                  <span>Redeemed on {selectedRedemption.date}</span>
+                  <span>Cost: {selectedRedemption.points_required} credits</span>
+                </div>
+              </div>
+
+              <DialogFooter className="mt-6 sm:justify-center">
+                <Button onClick={() => setIsDetailsDialogOpen(false)} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto px-10 text-base font-bold h-11 rounded-xl">
+                  Close
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </section>
