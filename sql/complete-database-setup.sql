@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS "User" (
   id TEXT PRIMARY KEY,                                    -- Clerk user ID (e.g., user_2abc123xyz)
   name TEXT NOT NULL,                                     -- first_name + last_name combined
   email TEXT UNIQUE NOT NULL,                             -- Primary email from Clerk
+  password TEXT,                                          -- Password field for email/password auth
   "imageUrl" TEXT,                                        -- Profile picture URL (optional)
   
   -- Application-specific fields

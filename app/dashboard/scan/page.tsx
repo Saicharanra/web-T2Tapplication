@@ -960,9 +960,16 @@ export default function UserDashboard() {
                               ) {
                                 return new Date(submission.createdAt).toLocaleDateString();
                               }
-                              return submission.createdAt;
+                              if (
+                                typeof submission.createdAt === "object" &&
+                                submission.createdAt &&
+                                "seconds" in submission.createdAt
+                              ) {
+                                return new Date((submission.createdAt as any).seconds * 1000).toLocaleDateString();
+                              }
+                              return String(submission.createdAt || "");
                             } catch {
-                              return submission.createdAt;
+                              return "Recently";
                             }
                           })()
                         }

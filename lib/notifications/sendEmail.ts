@@ -1,3 +1,5 @@
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
+
 /**
  * Sends a transactional email using Resend and our production-grade HTML templates.
  * Isomorphic: if called on the server, runs Resend SDK directly. If called on the client,
@@ -160,7 +162,7 @@ export async function sendEmail(
     // 2. Client-side context (Safe POST call to API route handler)
     try {
       console.log(`📡 Initiating proxy client-side email dispatch to [${to}] for: ${templateName}`);
-      const response = await fetch("/api/notifications/send-email", {
+      const response = await fetchWithAuth("/api/notifications/send-email", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

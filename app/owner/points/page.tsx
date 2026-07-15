@@ -415,7 +415,15 @@ export default function PointsHistoryPage() {
                       </span>
                       <span className="text-xs font-bold text-gray-700 mt-1 flex items-center gap-1">
                         <Clock className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                        {selectedUser.joinedAt}
+                        {selectedUser.joinedAt ? (
+                          typeof selectedUser.joinedAt === "object" && "seconds" in selectedUser.joinedAt ? (
+                            new Date((selectedUser.joinedAt as any).seconds * 1000).toLocaleDateString()
+                          ) : (
+                            new Date(selectedUser.joinedAt).toLocaleDateString()
+                          )
+                        ) : (
+                          "Unknown"
+                        )}
                       </span>
                     </div>
                   </div>

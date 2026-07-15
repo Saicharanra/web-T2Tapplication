@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabase-server";
+import { supabase } from "@/lib/supabase-client";
 import { BinDocument } from "@/types/find-bins";
 
 const TABLE = "Bin";
@@ -17,7 +17,7 @@ export async function createBin(
     photoUrl: string;
   }
 ): Promise<string> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from(TABLE)
     .insert({
       name: binData.name,
@@ -44,7 +44,7 @@ export async function createBin(
  * Fetches all bins from Supabase.
  */
 export async function fetchBins(): Promise<BinDocument[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from(TABLE)
     .select("*")
     .order("createdAt", { ascending: false });
@@ -71,7 +71,7 @@ export async function fetchBins(): Promise<BinDocument[]> {
  * Deletes a waste-bin row from Supabase.
  */
 export async function deleteBin(binId: string): Promise<void> {
-  const { error } = await supabaseAdmin.from(TABLE).delete().eq("id", binId);
+  const { error } = await supabase.from(TABLE).delete().eq("id", binId);
   if (error) {
     console.error("❌ deleteBin failed:", error);
     throw new Error(error.message);

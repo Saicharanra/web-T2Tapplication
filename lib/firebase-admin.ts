@@ -136,6 +136,7 @@ function mockTimestamp(dateStr: string) {
     nanoseconds: (date.getTime() % 1000) * 1e6,
     toString: () => date.toString(),
     toISOString: () => date.toISOString(),
+    toJSON: () => date.toISOString(),
   };
 }
 
@@ -285,18 +286,23 @@ class Query {
       const col = toPostgres(table, { [w.field]: null });
       const dbCol = Object.keys(col)[0] || w.field;
 
+      let val = w.value;
+      if (val instanceof Date) {
+        val = val.toISOString();
+      }
+
       if (w.op === "==" || w.op === "=") {
-        builder = builder.eq(dbCol, w.value);
+        builder = builder.eq(dbCol, val);
       } else if (w.op === ">") {
-        builder = builder.gt(dbCol, w.value);
+        builder = builder.gt(dbCol, val);
       } else if (w.op === "<") {
-        builder = builder.lt(dbCol, w.value);
+        builder = builder.lt(dbCol, val);
       } else if (w.op === ">=") {
-        builder = builder.gte(dbCol, w.value);
+        builder = builder.gte(dbCol, val);
       } else if (w.op === "<=") {
-        builder = builder.lte(dbCol, w.value);
+        builder = builder.lte(dbCol, val);
       } else if (w.op === "array-contains") {
-        builder = builder.contains(dbCol, [w.value]);
+        builder = builder.contains(dbCol, [val]);
       }
     }
 

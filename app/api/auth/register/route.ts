@@ -36,6 +36,11 @@ export async function POST(req: NextRequest) {
     // Generate a Clerk-compatible style ID (using timestamp + random)
     const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
+    // Hash the password if provided
+    const hashedPassword = password 
+      ? require("crypto").createHash("sha256").update(password).digest("hex") 
+      : null;
+
     // Insert new user into Supabase User table
     const { data: newUser, error: insertError } = await supabaseAdmin
       .from("User")
@@ -43,6 +48,7 @@ export async function POST(req: NextRequest) {
         id: userId,
         name: name.trim(),
         email: normalizedEmail,
+        password: hashedPassword, // Save hashed password
         role: "USER",
         level: "BRONZE",
         points: 0,

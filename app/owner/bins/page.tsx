@@ -574,11 +574,7 @@ export default function AdminBinsPage() {
                       {/* Created At */}
                       <td className="py-4 px-4 text-xs text-gray-500 dark:text-gray-450">
                         {bin.createdAt ? (
-                          bin.createdAt.toDate ? (
-                            bin.createdAt.toDate().toLocaleDateString()
-                          ) : (
-                            new Date(bin.createdAt).toLocaleDateString()
-                          )
+                          new Date(bin.createdAt).toLocaleDateString()
                         ) : (
                           "N/A"
                         )}
