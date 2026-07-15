@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
+
 import { sendEmail } from "@/lib/notifications/sendEmail";
 
 export const dynamic = "force-dynamic";
@@ -179,21 +180,21 @@ export async function PUT(req: NextRequest) {
             userId: recipientId,
             email,
             type: "reward_delivered",
-            title: "Reward Delivered 🎁",
+            title: "Reward Delivered ??",
             message: `Congratulations! Your reward "${rewardTitle}" has been successfully delivered.`,
             read: false,
             createdAt: new Date(),
           });
 
           // B: Send Resend Email
-          await sendEmail(email, "Eco-Gift Delivered! 🎁", "delivered", {
+          await sendEmail(email, "Eco-Gift Delivered! ??", "delivered", {
             name,
             rewardName: rewardTitle,
             pointsCost: pointsRequired,
           });
         }
       } catch (notifErr) {
-        console.error("⚠️ Failed to dispatch post-delivery notifications:", notifErr);
+        console.error("?? Failed to dispatch post-delivery notifications:", notifErr);
       }
     }
 

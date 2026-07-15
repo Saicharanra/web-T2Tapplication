@@ -1,11 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { auth } from "@/lib/firebase-client";
-import { createUser, getUser } from "@/lib/firebase-db";
-import { notify } from "@/lib/notifications/notify";
 import { useRouter } from "next/navigation";
+import { notify } from "@/lib/notifications/notify";
 import { Leaf, Mail, Lock, Loader2, ArrowRight, User, MapPin, Eye, EyeOff, X } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,7 +14,6 @@ export default function SignUpClient() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
@@ -32,9 +28,7 @@ export default function SignUpClient() {
   // Timer for resending OTP
   useEffect(() => {
     if (resendTimer <= 0) return;
-    const interval = setInterval(() => {
-      setResendTimer((prev) => prev - 1);
-    }, 1000);
+    const interval = setInterval(() => setResendTimer((prev) => prev - 1), 1000);
     return () => clearInterval(interval);
   }, [resendTimer]);
 
@@ -43,7 +37,7 @@ export default function SignUpClient() {
     setError("");
     setLoading(true);
     try {
-      // 1. Send OTP to user's email first
+      // Send OTP to user's email first
       const res = await fetch("/api/auth/otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -54,11 +48,8 @@ export default function SignUpClient() {
       });
 
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to send OTP verification email");
-      }
+      if (!res.ok) throw new Error(data.error || "Failed to send OTP verification email");
 
-      // Transition to OTP verification step
       setResendTimer(60);
       setStep("otp");
     } catch (err: any) {
@@ -81,12 +72,8 @@ export default function SignUpClient() {
           email: email.trim(),
         }),
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to resend verification email");
-      }
-
+      if (!res.ok) throw new Error(data.error || "Failed to resend verification email");
       setResendTimer(60);
       setResendSuccess(true);
       setTimeout(() => setResendSuccess(false), 5000);
@@ -112,49 +99,39 @@ export default function SignUpClient() {
       const verifyRes = await fetch("/api/auth/otp/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), otp: otpCode }),
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) throw new Error(verifyData.error || "Verification failed");
+
+      // 2. Register user via API route (creates row in Supabase User table)
+      const registerRes = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name: `${firstName} ${lastName}`.trim(),
           email: email.trim(),
-          otp: otpCode,
+          password, // stored hashed server-side if needed, optional
         }),
       });
+      const registerData = await registerRes.json();
+      if (!registerRes.ok) throw new Error(registerData.error || "Registration failed");
 
-      const verifyData = await verifyRes.json();
-      if (!verifyRes.ok) {
-        throw new Error(verifyData.error || "Verification failed");
-      }
+      const userId = registerData.userId;
 
-      // 2. Register user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      // 3. Store userId in localStorage
+      localStorage.setItem("t2t_user_id", userId);
 
-      await updateProfile(user, {
-        displayName: `${firstName} ${lastName}`.trim(),
-      });
-
-      // 3. Create user document in Firestore database
-      await createUser(user.uid, {
-        name: `${firstName} ${lastName}`.trim(),
-        email: user.email!,
-        role: "USER",
-        level: "BRONZE",
-        points: 0,
-        status: "ACTIVE",
-        location: "Not specified",
-        imageUrl: null,
-      });
-
-      // 4. Dispatch Welcome In-App Notification and Resend Transactional Email
+      // 4. Dispatch Welcome Notification
       try {
         await notify({
-          userId: user.uid,
-          email: user.email!,
+          userId,
+          email: email.trim(),
           type: "user_created",
           title: "Account Created Successfully! 🌍",
           message: "Welcome to Trash2Treasure! Your account has been successfully created. Thank you for joining our eco-friendly movement!",
           emailTemplate: "welcome",
-          emailProps: {
-            name: `${firstName} ${lastName}`.trim(),
-          }
+          emailProps: { name: `${firstName} ${lastName}`.trim() },
         });
       } catch (notifErr) {
         console.error("⚠️ Failed to dispatch welcome notifications:", notifErr);
@@ -169,16 +146,12 @@ export default function SignUpClient() {
   };
 
   const handleOtpChange = (index: number, value: string) => {
-    if (isNaN(Number(value))) return; // only allow numbers
-
+    if (isNaN(Number(value))) return;
     const newOtpValues = [...otpValues];
     newOtpValues[index] = value.substring(value.length - 1);
     setOtpValues(newOtpValues);
-
-    // move to next input if filled
     if (value && index < 5) {
-      const nextInput = document.getElementById(`otp-input-${index + 1}`);
-      nextInput?.focus();
+      document.getElementById(`otp-input-${index + 1}`)?.focus();
     }
   };
 
@@ -188,8 +161,7 @@ export default function SignUpClient() {
         const newOtpValues = [...otpValues];
         newOtpValues[index - 1] = "";
         setOtpValues(newOtpValues);
-        const prevInput = document.getElementById(`otp-input-${index - 1}`);
-        prevInput?.focus();
+        document.getElementById(`otp-input-${index - 1}`)?.focus();
       } else {
         const newOtpValues = [...otpValues];
         newOtpValues[index] = "";
@@ -202,56 +174,8 @@ export default function SignUpClient() {
     e.preventDefault();
     const pasteData = e.clipboardData.getData("text").trim();
     if (/^\d{6}$/.test(pasteData)) {
-      const digits = pasteData.split("");
-      setOtpValues(digits);
-      const lastInput = document.getElementById(`otp-input-5`);
-      lastInput?.focus();
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
-    setError("");
-    const provider = new GoogleAuthProvider();
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      const existingUser = await getUser(user.uid);
-      if (!existingUser) {
-        await createUser(user.uid, {
-          name: user.displayName || "Anonymous User",
-          email: user.email!,
-          role: "USER",
-          level: "BRONZE",
-          points: 0,
-          status: "ACTIVE",
-          location: "Not specified",
-          imageUrl: user.photoURL,
-        });
-
-        // Dispatch Welcome In-App Notification and Resend Transactional Email
-        try {
-          await notify({
-            userId: user.uid,
-            email: user.email!,
-            type: "user_created",
-            title: "Account Created Successfully! 🌍",
-            message: "Welcome to Trash2Treasure! Your account has been successfully created. Thank you for joining our eco-friendly movement!",
-            emailTemplate: "welcome",
-            emailProps: {
-              name: user.displayName || "Eco Partner",
-            }
-          });
-        } catch (notifErr) {
-          console.error("⚠️ Failed to dispatch welcome notifications for Google signup:", notifErr);
-        }
-      }
-      router.push("/dashboard/home");
-    } catch (err: any) {
-      setError(err.message || "Google sign-in failed");
-    } finally {
-      setGoogleLoading(false);
+      setOtpValues(pasteData.split(""));
+      document.getElementById("otp-input-5")?.focus();
     }
   };
 
@@ -263,8 +187,8 @@ export default function SignUpClient() {
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/20 blur-[120px] rounded-full animate-pulse" />
           <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-teal-500/10 blur-[120px] rounded-full" />
         </div>
-        
-        <motion.div 
+
+        <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8 }}
@@ -279,7 +203,6 @@ export default function SignUpClient() {
           <p className="text-xl text-slate-400 font-medium leading-relaxed">
             Create an account today and start earning rewards for making the world a cleaner place.
           </p>
-          
           <div className="mt-12 space-y-4">
             <div className="flex items-center gap-4 bg-white/5 backdrop-blur-sm p-4 rounded-2xl border border-white/10 text-left">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
@@ -305,9 +228,8 @@ export default function SignUpClient() {
 
       {/* Right Content Panel */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 md:p-12 relative overflow-y-auto">
-        {/* Close Button */}
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="absolute top-6 right-6 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-all shadow-lg backdrop-blur-sm z-50 group"
           aria-label="Close"
         >
@@ -318,7 +240,7 @@ export default function SignUpClient() {
           <div className="absolute top-0 right-0 w-[80%] h-[50%] bg-emerald-500/10 blur-[120px] rounded-full" />
         </div>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.6 }}
@@ -349,7 +271,7 @@ export default function SignUpClient() {
                 <form className="space-y-4" onSubmit={handleSignUp}>
                   <AnimatePresence mode="wait">
                     {error && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
@@ -425,71 +347,30 @@ export default function SignUpClient() {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-400 focus:text-emerald-400 transition-colors cursor-pointer focus:outline-none"
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-emerald-400 transition-colors cursor-pointer focus:outline-none"
                         aria-label={showPassword ? "Hide password" : "Show password"}
                       >
-                        {showPassword ? (
-                          <EyeOff className="w-5 h-5" />
-                        ) : (
-                          <Eye className="w-5 h-5" />
-                        )}
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
                     </div>
                   </div>
 
                   <button
                     type="submit"
+                    id="signup-submit"
                     disabled={loading}
                     className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] mt-4"
                   >
-                    {loading ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <>Create Account <ArrowRight className="w-5 h-5" /></>
-                    )}
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Create Account <ArrowRight className="w-5 h-5" /></>}
                   </button>
                 </form>
 
-                <div className="relative my-8">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/10"></div>
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase tracking-widest font-bold">
-                    <span className="bg-[#020617] px-4 text-slate-500">Or sign up with</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleGoogleSignIn}
-                  disabled={googleLoading}
-                  className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-2xl font-bold transition-all active:scale-[0.98] disabled:opacity-50"
-                >
-                  {googleLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" viewBox="0 0 24 24">
-                        <path
-                          fill="currentColor"
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        />
-                        <path
-                          fill="#34A853"
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                        />
-                        <path
-                          fill="#FBBC05"
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                        />
-                        <path
-                          fill="#EA4335"
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                        />
-                      </svg>
-                      Sign up with Google
-                    </>
-                  )}
-                </button>
+                <p className="mt-10 text-center text-slate-400 font-medium">
+                  Already have an account?{" "}
+                  <Link href="/sign-in" className="text-emerald-400 font-bold hover:text-emerald-300 transition-colors underline-offset-4 hover:underline">
+                    Sign in here
+                  </Link>
+                </p>
               </motion.div>
             ) : (
               <motion.div
@@ -509,7 +390,7 @@ export default function SignUpClient() {
                 <form className="space-y-6" onSubmit={handleVerifyAndRegister}>
                   <AnimatePresence mode="wait">
                     {otpError && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
@@ -520,7 +401,7 @@ export default function SignUpClient() {
                       </motion.div>
                     )}
                     {resendSuccess && (
-                      <motion.div 
+                      <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
@@ -553,14 +434,11 @@ export default function SignUpClient() {
 
                   <button
                     type="submit"
+                    id="signup-verify"
                     disabled={otpLoading}
                     className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98]"
                   >
-                    {otpLoading ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <>Verify & Register <ArrowRight className="w-5 h-5" /></>
-                    )}
+                    {otpLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Verify & Register <ArrowRight className="w-5 h-5" /></>}
                   </button>
 
                   <div className="text-center space-y-4 pt-4">
@@ -578,13 +456,9 @@ export default function SignUpClient() {
                         </button>
                       )}
                     </p>
-
                     <button
                       type="button"
-                      onClick={() => {
-                        setStep("signup");
-                        setOtpError("");
-                      }}
+                      onClick={() => { setStep("signup"); setOtpError(""); }}
                       className="text-sm text-slate-400 hover:text-white font-semibold transition-colors underline-offset-4 hover:underline focus:outline-none"
                     >
                       Change Email / Back
@@ -594,13 +468,6 @@ export default function SignUpClient() {
               </motion.div>
             )}
           </AnimatePresence>
-
-          <p className="mt-10 text-center text-slate-400 font-medium">
-            Already have an account?{" "}
-            <Link href="/sign-in" className="text-emerald-400 font-bold hover:text-emerald-300 transition-colors underline-offset-4 hover:underline">
-              Sign in here
-            </Link>
-          </p>
         </motion.div>
       </div>
     </main>

@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
+
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
       recentSubmissions,
     });
   } catch (error: any) {
-    console.error("💥 Error in admin dashboard route:", error);
+    console.error("?? Error in admin dashboard route:", error);
     if (error.message.startsWith('Unauthorized')) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

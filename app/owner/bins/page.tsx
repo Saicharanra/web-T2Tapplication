@@ -4,7 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/use-toast";
-import { subscribeToBins, createBin, deleteBin } from "@/lib/firebase/bins";
+import { fetchBins, createBin, deleteBin } from "@/lib/supabase/bins";
+import { supabase } from "@/lib/supabase-client";
+
 import { BinDocument } from "@/types/find-bins";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,27 +52,37 @@ export default function AdminBinsPage() {
   const [formPhotoUrl, setFormPhotoUrl] = useState("");
   const [gpsLoading, setGpsLoading] = useState(false);
 
-  // 1. Subscribe to Firestore Bins collection
+  // 1. Load bins + Supabase Realtime subscription
   useEffect(() => {
     setLoading(true);
-    const unsubscribe = subscribeToBins(
-      (data) => {
+
+    const loadBins = async () => {
+      try {
+        const data = await fetchBins();
         setBins(data);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Firestore bins subscription error:", error);
+      } catch (err) {
+        console.error("Failed to fetch bins:", err);
         toast({
           title: "❌ Connection Error",
-          description: "Failed to load bins in real-time from Firestore.",
+          description: "Failed to load bins from Supabase.",
           variant: "destructive",
         });
+      } finally {
         setLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    loadBins();
+
+    // Listen for real-time changes on Bin table
+    const channel = supabase
+      .channel("admin-bins-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "Bin" }, () => loadBins())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [toast]);
+
 
   // 2. Filter Bins
   const filteredBins = useMemo(() => {

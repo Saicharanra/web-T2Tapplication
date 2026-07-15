@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
+
 import { sendEmail } from "@/lib/notifications/sendEmail";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
         userId: recipient.id,
         email: recipient.email,
         type: "announcement",
-        title: `📢 ${title}`,
+        title: `?? ${title}`,
         message: message.length > 120 ? `${message.slice(0, 117)}...` : message,
         read: false,
         createdAt: new Date(),
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
 
     // Dispatch Emails concurrently to protect timing
     const emailPromises = usersList.map((recipient) =>
-      sendEmail(recipient.email, `📢 Announcement: ${title}`, "announcement", {
+      sendEmail(recipient.email, `?? Announcement: ${title}`, "announcement", {
         title,
         message,
         name: recipient.name,
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, count: usersList.length, status: "sent" });
   } catch (error: any) {
-    console.error("💥 Error in admin announcements route:", error);
+    console.error("?? Error in admin announcements route:", error);
     if (error.message.startsWith("Unauthorized")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

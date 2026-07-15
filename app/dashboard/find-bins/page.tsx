@@ -7,7 +7,9 @@ import dynamicImport from "next/dynamic";
 import { useLocation } from "@/hooks/useLocation";
 import { SearchBar } from "@/components/find-bins/SearchBar";
 import { BinList } from "@/components/find-bins/BinList";
-import { subscribeToBins } from "@/lib/firebase/bins";
+import { fetchBins } from "@/lib/supabase/bins";
+import { supabase } from "@/lib/supabase-client";
+
 import { calculateDistance } from "@/hooks/useNearbyBins";
 import { motion } from "framer-motion";
 import { Map, List } from "lucide-react";
@@ -41,21 +43,30 @@ export default function FindBinsPage() {
   const [selectedBinId, setSelectedBinId] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "map">("list");
 
-  // 1. Listen to bins collection in real-time
+  // 1. Load bins + Supabase Realtime subscription
   useEffect(() => {
     setBinsLoading(true);
-    const unsubscribe = subscribeToBins(
-      (data) => {
+
+    const loadBins = async () => {
+      try {
+        const data = await fetchBins();
         setAllBins(data);
-        setBinsLoading(false);
-      },
-      (error) => {
-        console.error("Firestore subscription error:", error);
+      } catch (err) {
+        console.error("Failed to fetch bins:", err);
+      } finally {
         setBinsLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    loadBins();
+
+    // Listen for real-time changes on Bin table
+    const channel = supabase
+      .channel("bins-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "Bin" }, () => loadBins())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   // 2. Exact GPS distances, sorting and text filtering

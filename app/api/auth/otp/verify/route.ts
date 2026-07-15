@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,34 +16,25 @@ export async function POST(req: NextRequest) {
     const normalizedEmail = email.toLowerCase().trim();
     const enteredOtp = otp.trim();
 
-    if (!adminDb) {
-      console.warn("⚠️ Firebase Admin DB is not initialized. Permitting verification in development.");
-      return NextResponse.json({ success: true, mocked: true });
-    }
+    // 1. Fetch OTP record from Supabase
+    const { data: otpRecord, error: fetchError } = await supabaseAdmin
+      .from("OTP")
+      .select("otp, expiresAt")
+      .eq("email", normalizedEmail)
+      .single();
 
-    // 1. Fetch OTP from Firestore
-    const otpDocRef = adminDb.collection("otps").doc(normalizedEmail);
-    const otpDoc = await otpDocRef.get();
-
-    if (!otpDoc.exists) {
+    if (fetchError || !otpRecord) {
       return NextResponse.json(
         { error: "Verification code is invalid or has expired. Please request a new one." },
         { status: 400 }
       );
     }
 
-    const data = otpDoc.data();
-    if (!data) {
-      return NextResponse.json({ error: "No verification data found." }, { status: 400 });
-    }
-
-    const { otp: storedOtp, expiresAt } = data;
-
     // 2. Validate expiration
-    const expiryDate = expiresAt.toDate ? expiresAt.toDate() : new Date(expiresAt);
+    const expiryDate = new Date(otpRecord.expiresAt);
     if (new Date() > expiryDate) {
       // Clean up expired OTP
-      await otpDocRef.delete();
+      await supabaseAdmin.from("OTP").delete().eq("email", normalizedEmail);
       return NextResponse.json(
         { error: "Verification code has expired. Please request a new one." },
         { status: 400 }
@@ -51,15 +42,15 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Match code
-    if (storedOtp !== enteredOtp) {
+    if (otpRecord.otp !== enteredOtp) {
       return NextResponse.json(
         { error: "The verification code you entered is incorrect." },
         { status: 400 }
       );
     }
 
-    // 4. Verification successful, clean up OTP from Firestore
-    await otpDocRef.delete();
+    // 4. Verification successful — clean up OTP from Supabase
+    await supabaseAdmin.from("OTP").delete().eq("email", normalizedEmail);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {

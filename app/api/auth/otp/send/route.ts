@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { supabaseAdmin } from "@/lib/supabase-server";
 import { OTPEmail } from "@/lib/notifications/templates";
 import { sendSmtpEmail } from "@/lib/notifications/sendSmtpEmail";
 
@@ -17,43 +17,43 @@ export async function POST(req: NextRequest) {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 1. Check if user already exists in Firebase Auth
-    if (adminAuth) {
-      try {
-        const userRecord = await adminAuth.getUserByEmail(normalizedEmail);
-        if (userRecord) {
-          return NextResponse.json(
-            { error: "This email address is already registered. Please sign in instead." },
-            { status: 400 }
-          );
-        }
-      } catch (authError: any) {
-        if (authError.code !== "auth/user-not-found") {
-          console.error("Firebase Admin Auth error check:", authError);
-          return NextResponse.json(
-            { error: "Error checking user existence." },
-            { status: 500 }
-          );
-        }
-      }
+    // 1. Check if email is already registered in Supabase User table
+    const { data: existingUser } = await supabaseAdmin
+      .from("User")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .single();
+
+    if (existingUser) {
+      return NextResponse.json(
+        { error: "This email address is already registered. Please sign in instead." },
+        { status: 400 }
+      );
     }
 
     // 2. Generate a 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
 
-    // 3. Save OTP in Firestore collection 'otps'
-    if (adminDb) {
-      await adminDb.collection("otps").doc(normalizedEmail).set({
-        otp,
-        createdAt: new Date(),
-        expiresAt,
-      });
-    } else {
-      console.warn("⚠️ Firebase Admin DB is not initialized. Storing OTP skipped.");
+    // 3. Upsert OTP into Supabase OTP table (one record per email)
+    const { error: upsertError } = await supabaseAdmin
+      .from("OTP")
+      .upsert(
+        {
+          email: normalizedEmail,
+          otp,
+          createdAt: new Date().toISOString(),
+          expiresAt: expiresAt.toISOString(),
+        },
+        { onConflict: "email" }
+      );
+
+    if (upsertError) {
+      console.error("❌ Failed to store OTP in Supabase:", upsertError);
+      return NextResponse.json({ error: "Failed to generate verification code." }, { status: 500 });
     }
 
-    // 4. Build and send the email
+    // 4. Build and send the OTP email
     const emailHtml = OTPEmail({ name, otp });
     const emailResult = await sendSmtpEmail({
       to: normalizedEmail,

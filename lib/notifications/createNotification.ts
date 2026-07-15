@@ -1,8 +1,8 @@
-import { db } from "@/lib/firebase-client";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 /**
- * Creates and logs an in-app notification in the Firestore "notifications" collection.
+ * Creates an in-app notification row in Supabase Notification table.
+ * Replaces the Firestore 'notifications' collection write.
  */
 export async function createNotification(
   userId: string,
@@ -16,21 +16,29 @@ export async function createNotification(
       throw new Error("Missing recipient userId or email parameters.");
     }
 
-    const notificationsRef = collection(db, "notifications");
-    const docRef = await addDoc(notificationsRef, {
-      userId,
-      email,
-      type,
-      title,
-      message,
-      read: false,
-      createdAt: serverTimestamp(),
-    });
+    const { data, error } = await supabaseAdmin
+      .from("Notification")
+      .insert({
+        userId,
+        email,
+        type,
+        title,
+        message,
+        read: false,
+        createdAt: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
 
-    console.log(`🔔 In-App Notification created: ${docRef.id} for user ${userId}`);
-    return docRef.id;
+    if (error || !data) {
+      console.error("❌ Failed to insert Supabase notification:", error);
+      throw new Error(error?.message || "Failed to create notification");
+    }
+
+    console.log(`🔔 Notification created: ${data.id} for user ${userId}`);
+    return data.id;
   } catch (error) {
-    console.error("❌ Failed to log Firestore in-app notification:", error);
+    console.error("❌ Failed to create in-app notification:", error);
     throw error;
   }
 }

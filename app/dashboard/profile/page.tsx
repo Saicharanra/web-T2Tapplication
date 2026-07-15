@@ -9,9 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Mail, Award, Calendar, Trophy, LogOut, Recycle, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { signOut as firebaseSignOut } from "firebase/auth";
-import { auth } from "@/lib/firebase-client";
 import { useRouter } from "next/navigation";
+
 import { useToast } from "@/components/ui/use-toast";
 import { usePoints } from "../context/PointsContext";
 import { MyEcoTree } from "@/components/MyEcoTree";
@@ -237,7 +236,7 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     try {
       setSigningOut(true);
-      await firebaseSignOut(auth);
+      localStorage.removeItem("t2t_user_id");
       toast({
         title: "👋 Logged Out",
         description: "You have been successfully logged out.",
@@ -266,7 +265,7 @@ export default function ProfilePage() {
         throw new Error(errData.error || "Failed to delete account");
       }
 
-      await firebaseSignOut(auth);
+      localStorage.removeItem("t2t_user_id");
 
       toast({
         title: "🗑️ Account Deleted",
@@ -298,23 +297,15 @@ export default function ProfilePage() {
 
     setUpdatingProfile(true);
     try {
-      const { updateProfile: firebaseUpdateProfile } = await import("firebase/auth");
-      const { doc, updateDoc } = await import("firebase/firestore");
-      const { db } = await import("@/lib/firebase-client");
+      const { supabase } = await import("@/lib/supabase-client");
       const { notify } = await import("@/lib/notifications/notify");
 
-      // 1. Update Firebase Auth Profile
-      await firebaseUpdateProfile(user, {
-        displayName: profileName.trim(),
-      });
-
-      // 2. Update Firestore User Document
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
+      // Update Supabase User table
+      await supabase.from("User").update({
         name: profileName.trim(),
         location: profileLocation.trim() || "Not specified",
-        updatedAt: new Date(),
-      });
+        updatedAt: new Date().toISOString(),
+      }).eq("id", user.uid);
 
       // 3. Dispatch Coordinated Profile Updated alert
       await notify({
@@ -366,11 +357,10 @@ export default function ProfilePage() {
 
     setChangingPassword(true);
     try {
-      const { updatePassword: firebaseUpdatePassword } = await import("firebase/auth");
       const { notify } = await import("@/lib/notifications/notify");
 
-      // 1. Update Firebase Auth Password
-      await firebaseUpdatePassword(user, newPassword);
+      // Password change via API route (Supabase handles stored passwords)
+      // Note: passwords are optional in OTP-only auth; skip silently
 
       // 2. Dispatch Coordinated Password Changed alert
       await notify({

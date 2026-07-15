@@ -2,20 +2,9 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { db } from "@/lib/firebase-client";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  orderBy,
-  doc,
-  updateDoc,
-  writeBatch,
-  deleteDoc
-} from "firebase/firestore";
+import { supabase } from "@/lib/supabase-client";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { NotificationItemData } from "@/components/notifications/NotificationItem";
 import { motion } from "framer-motion";
@@ -24,8 +13,9 @@ export default function UserNotificationsPage() {
   const { user, loading: authLoading } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItemData[]>([]);
   const [loading, setLoading] = useState(true);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // 1. Establish real-time Firestore synchronization
+  // 1. Fetch notifications + Supabase Realtime subscription
   useEffect(() => {
     if (!user) {
       if (!authLoading) setLoading(false);
@@ -33,77 +23,72 @@ export default function UserNotificationsPage() {
     }
 
     setLoading(true);
-    const notificationsRef = collection(db, "notifications");
-    const q = query(
-      notificationsRef,
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const list: NotificationItemData[] = [];
-        snapshot.forEach((doc) => {
-          list.push({
-            id: doc.id,
-            ...doc.data(),
-          } as NotificationItemData);
-        });
-        setNotifications(list);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("❌ Notifications page query failed:", error);
-        setLoading(false);
+    const loadNotifications = async () => {
+      const { data, error } = await supabase
+        .from("Notification")
+        .select("*")
+        .eq("userId", user.uid)
+        .order("createdAt", { ascending: false });
+
+      if (!error && data) {
+        setNotifications(data as NotificationItemData[]);
       }
-    );
+      setLoading(false);
+    };
 
-    return () => unsubscribe();
+    loadNotifications();
+
+    // Realtime subscription
+    const channel = supabase
+      .channel(`notifications-page:${user.uid}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "Notification",
+        filter: `userId=eq.${user.uid}`,
+      }, () => loadNotifications())
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
   }, [user, authLoading]);
 
   // 2. Mark individual notification as read
   const handleMarkAsRead = async (id: string) => {
     try {
-      const docRef = doc(db, "notifications", id);
-      await updateDoc(docRef, { read: true });
+      await supabase.from("Notification").update({ read: true }).eq("id", id);
+      setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
     } catch (err) {
       console.error("Failed to read notification:", err);
     }
   };
 
-  // 3. Mark all notifications as read in a single batch transaction
+  // 3. Mark all notifications as read
   const handleMarkAllAsRead = async () => {
     const unread = notifications.filter((n) => !n.read);
     if (unread.length === 0) return;
-
     try {
-      const batch = writeBatch(db);
-      unread.forEach((n) => {
-        const docRef = doc(db, "notifications", n.id);
-        batch.update(docRef, { read: true });
-      });
-      await batch.commit();
+      await supabase.from("Notification").update({ read: true }).eq("userId", user?.uid).eq("read", false);
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch (err) {
       console.error("Failed to read all notifications:", err);
     }
   };
 
-  // 4. Clear all notifications (Delete them from database)
+  // 4. Clear all notifications
   const handleClearAll = async () => {
     if (notifications.length === 0) return;
     const confirmClear = window.confirm("Are you sure you want to clear your entire notification history?");
     if (!confirmClear) return;
-
     try {
-      const batch = writeBatch(db);
-      notifications.forEach((n) => {
-        const docRef = doc(db, "notifications", n.id);
-        batch.delete(docRef);
-      });
-      await batch.commit();
+      await supabase.from("Notification").delete().eq("userId", user?.uid);
+      setNotifications([]);
     } catch (err) {
-      console.error("Failed to delete notifications history:", err);
+      console.error("Failed to delete notifications:", err);
     }
   };
 
@@ -111,7 +96,6 @@ export default function UserNotificationsPage() {
     <div className="w-full max-w-4xl mx-auto flex flex-col gap-6 px-1 md:px-0">
       <title>Notifications | Trash2Treasure</title>
       <meta name="description" content="Stay updated with your latest points verification alerts." />
-      {/* Centered Page Header */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -120,7 +104,6 @@ export default function UserNotificationsPage() {
       >
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-
         <h2 className="text-2xl md:text-3xl font-extrabold text-slate-850 dark:text-slate-100 flex items-center gap-2">
           <span>🔔</span> Notification Center
         </h2>
@@ -129,7 +112,6 @@ export default function UserNotificationsPage() {
         </p>
       </motion.div>
 
-      {/* Unified Center Workspace */}
       <NotificationCenter
         notifications={notifications}
         onMarkAsRead={handleMarkAsRead}

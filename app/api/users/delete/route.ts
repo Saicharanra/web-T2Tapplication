@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession, adminAuth, adminDb } from "@/lib/firebase-admin";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
+
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
