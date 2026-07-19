@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
+
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ count: count || 0 });
   } catch (error: any) {
-    console.error("💥 Server Error:", error);
+    console.error("?? Server Error:", error);
     if (error.message.startsWith('Unauthorized')) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS "User" (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
+  password TEXT, -- Password field for email/password auth
   "imageUrl" TEXT,
 
   role TEXT DEFAULT 'USER' CHECK (role IN ('USER','ADMIN')),

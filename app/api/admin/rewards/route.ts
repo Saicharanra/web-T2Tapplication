@@ -1,5 +1,6 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
+
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -137,7 +138,7 @@ export async function POST(req: NextRequest) {
       title: title.trim(),
       description: description?.trim() || "",
       points_required,
-      image_url: image_url?.trim() || "🎁",
+      image_url: image_url?.trim() || "??",
       status: status || "Active",
       category: category?.trim() || "General",
       stock: stock ?? 0,

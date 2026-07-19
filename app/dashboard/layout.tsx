@@ -197,30 +197,29 @@ export default function DashboardLayout({
     if (user) {
       const handleFirstLoginNotification = async () => {
         try {
-          const { doc, getDoc, updateDoc } = await import("firebase/firestore");
-          const { db } = await import("@/lib/firebase-client");
+          const { supabase } = await import("@/lib/supabase-client");
           const { notify } = await import("@/lib/notifications/notify");
-          
-          const userRef = doc(db, "users", user.uid);
-          const userSnap = await getDoc(userRef);
 
-          if (userSnap.exists()) {
-            const data = userSnap.data();
-            if (data.firstLoginPending !== false && !data.hasLoggedInBefore) {
-              await notify({
-                userId: user.uid,
-                email: user.email || "",
-                type: "first_login",
-                title: "First Login Registered 🔑",
-                message: "Welcome back for your first session! Let's start scanning and saving the planet.",
-              });
+          const { data: userData } = await supabase
+            .from("User")
+            .select("firstLoginPending, hasLoggedInBefore")
+            .eq("id", user.uid)
+            .single();
 
-              await updateDoc(userRef, {
-                firstLoginPending: false,
-                hasLoggedInBefore: true,
-                updatedAt: new Date()
-              });
-            }
+          if (userData && userData.firstLoginPending !== false && !userData.hasLoggedInBefore) {
+            await notify({
+              userId: user.uid,
+              email: user.email || "",
+              type: "first_login",
+              title: "First Login Registered 🔑",
+              message: "Welcome back for your first session! Let's start scanning and saving the planet.",
+            });
+
+            await supabase.from("User").update({
+              firstLoginPending: false,
+              hasLoggedInBefore: true,
+              updatedAt: new Date().toISOString()
+            }).eq("id", user.uid);
           }
         } catch (err) {
           console.error("⚠️ Failed to check or trigger First Login notification:", err);
@@ -243,16 +242,15 @@ export default function DashboardLayout({
       const timeSpent = Math.round((Date.now() - startTime) / 1000);
       if (timeSpent < 1) return;
 
-      import("firebase/firestore").then(async ({ collection, addDoc, serverTimestamp }) => {
+      import("@/lib/supabase-client").then(async ({ supabase }) => {
         try {
-          const { db } = await import("@/lib/firebase-client");
-          await addDoc(collection(db, "analytics"), {
+          await supabase.from("analytics").insert({
             userId: user.uid,
-            userName: user.displayName || user.email || "Anonymous",
+            userName: user.name || user.email || "Anonymous",
             userEmail: user.email || "",
             pathname: currentPath,
             timeSpent: timeSpent,
-            timestamp: serverTimestamp(),
+            timestamp: new Date().toISOString(),
           });
         } catch (err) {
           console.error("⚠️ Failed to write user engagement tracking log:", err);

@@ -37,7 +37,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
@@ -248,6 +248,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {user?.photoURL ? <Image src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" width={36} height={36} unoptimized /> : (user?.displayName || "A").charAt(0).toUpperCase()}
               </div>
             </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-xl text-red-500 hover:text-red-700 hover:bg-red-50 ml-1"
+              onClick={logout}
+              title="Logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </Button>
           </div>
         </div>
       </header>
@@ -293,7 +303,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </nav>
 
-        <div className="p-4 border-t border-gray-100/80">
+        <div className="p-4 border-t border-gray-100/80 space-y-3">
           <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-3 border border-emerald-100/50">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
@@ -307,6 +317,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
             </div>
           </div>
+          <button
+            onClick={logout}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 border border-red-100 hover:border-red-300 transition-all duration-200 group"
+          >
+            <LogOut className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+            Sign Out
+          </button>
         </div>
       </aside>
 

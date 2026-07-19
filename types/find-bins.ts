@@ -1,5 +1,3 @@
-import { Timestamp } from "firebase/firestore";
-
 export interface BinDocument {
   id: string;
   name: string;
@@ -9,7 +7,7 @@ export interface BinDocument {
   locationType: string;
   photoUrl: string;
   addedBy: string;
-  createdAt: Timestamp | any;
+  createdAt: string | Date;
   distance?: number; // Runtime calculated distance in km
 }
 

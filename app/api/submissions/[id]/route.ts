@@ -1,6 +1,8 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
-import cloudinary from "@/lib/cloudinary";
+
+
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,14 +38,17 @@ export async function DELETE(
 
     const submissionData = submissionDoc.data()!;
 
-    // Delete the image from Cloudinary if imagePath exists
+    // Delete the image from Supabase Storage if imagePath exists
     if (submissionData.imagePath) {
       try {
-        console.log(`🗑️ Deleting image ${submissionData.imagePath} from Cloudinary...`);
-        await cloudinary.uploader.destroy(submissionData.imagePath);
-        console.log("✅ Image deleted from Cloudinary");
-      } catch (cloudinaryErr) {
-        console.error("⚠️ Cloudinary deletion error:", cloudinaryErr);
+        console.log(`🗑️ Deleting image ${submissionData.imagePath} from Supabase Storage...`);
+        const { error: deleteError } = await supabaseAdmin.storage
+          .from("waste-images")
+          .remove([submissionData.imagePath]);
+        if (deleteError) throw deleteError;
+        console.log("✅ Image deleted from Supabase Storage");
+      } catch (storageErr) {
+        console.error("⚠️ Supabase Storage deletion error:", storageErr);
       }
     }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession } from "@/lib/firebase-admin";
-import cloudinary from "@/lib/cloudinary";
+import { verifySession, adminDb } from "@/lib/firebase-admin";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -41,33 +41,27 @@ export async function POST(req: NextRequest) {
     const submissionId = crypto.randomUUID();
     const buffer = Buffer.from(await file.arrayBuffer());
     
-    // Cloudinary Upload
-    console.log(`🚀 Uploading file to Cloudinary...`);
-    
-    const uploadToCloudinary = () => {
-      return new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            folder: `submissions/${userId}`,
-            public_id: submissionId,
-            resource_type: 'auto',
-          },
-          (error, result) => {
-            if (error) {
-              console.error("❌ Cloudinary upload error:", error);
-              reject(error);
-            } else {
-              resolve(result);
-            }
-          }
-        );
-        uploadStream.end(buffer);
-      });
-    };
+    // Supabase Storage Upload
+    console.log(`🚀 Uploading file to Supabase Storage (waste-images)...`);
+    const fileExtension = file.name.split('.').pop() || 'jpg';
+    const imagePath = `${userId}/${submissionId}.${fileExtension}`;
 
-    const cloudinaryResult = (await uploadToCloudinary()) as any;
-    const publicUrl = cloudinaryResult.secure_url;
-    const imagePath = cloudinaryResult.public_id;
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+      .from("waste-images")
+      .upload(imagePath, buffer, {
+        contentType: file.type,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error("❌ Supabase Storage upload error:", uploadError);
+      throw uploadError;
+    }
+
+    const { data: urlData } = supabaseAdmin.storage
+      .from("waste-images")
+      .getPublicUrl(imagePath);
+    const publicUrl = urlData.publicUrl;
 
     console.log(`✅ Upload successful: ${publicUrl}`);
 
@@ -92,8 +86,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (error.message.includes('Must provide')) {
-      errorMessage = "Cloudinary configuration error. Please check your environment variables.";
+    if (error.message.includes('bucket') || error.message.includes('storage')) {
+      errorMessage = "Supabase Storage configuration error. Please check your waste-images bucket.";
       status = 500;
     }
 

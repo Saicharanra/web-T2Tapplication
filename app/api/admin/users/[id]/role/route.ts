@@ -1,6 +1,7 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifySession, adminDb } from "@/lib/firebase-admin";
-import * as admin from "firebase-admin";
+
+
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -34,7 +35,7 @@ export async function PATCH(
     // Update user role in Firestore
     await adminDb.collection("users").doc(targetUserId).update({
       role,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: new Date(),
     });
 
     return NextResponse.json({ message: "User role updated successfully" });
