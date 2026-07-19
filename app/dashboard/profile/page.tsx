@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Mail, Award, Calendar, Trophy, LogOut, Recycle, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase-client";
 
 import { useToast } from "@/components/ui/use-toast";
 import { usePoints } from "../context/PointsContext";
@@ -359,8 +360,12 @@ export default function ProfilePage() {
     try {
       const { notify } = await import("@/lib/notifications/notify");
 
-      // Password change via API route (Supabase handles stored passwords)
-      // Note: passwords are optional in OTP-only auth; skip silently
+      // Use native Supabase Auth client to update password
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
 
       // 2. Dispatch Coordinated Password Changed alert
       await notify({
@@ -865,9 +870,26 @@ export default function ProfilePage() {
                         {new Date(sub.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </p>
                       <div className="flex items-center gap-2">
-                        {sub.status === 'VERIFIED' && (
+                        {sub.status === 'VERIFIED' ? (
                           <p className="text-xs font-bold text-green-600 mr-2">
                             +{sub.pointsAwarded} pts
+                          </p>
+                        ) : sub.status === 'PENDING' ? (
+                          <p className="text-xs font-bold text-amber-600 mr-2">
+                            +{({
+                              "Plastic Bottles": 15,
+                              "Paper Waste": 10,
+                              "Metal Cans": 25,
+                              "Glass Bottles": 20,
+                              "Cardboard": 12,
+                              "E-Waste": 50,
+                              "Organic Waste": 18,
+                              "Mixed Recyclables": 8
+                            }[sub.wasteType] || 0)} pts (Pending)
+                          </p>
+                        ) : (
+                          <p className="text-xs font-bold text-red-600 mr-2">
+                            0 pts (Rejected)
                           </p>
                         )}
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>

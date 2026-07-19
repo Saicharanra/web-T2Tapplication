@@ -26,48 +26,28 @@ function getTableName(collection: string): string {
 function toPostgres(table: string, data: any): any {
   if (!data) return data;
   const result: any = {};
+
+  const schemas: Record<string, string[]> = {
+    User: ["id", "name", "email", "password", "role", "level", "points", "status", "location", "imageUrl", "joinedAt", "updatedAt"],
+    Submission: ["id", "userId", "wasteType", "imageUrl", "imagePath", "imageSize", "imageMimeType", "pointsAwarded", "status", "location", "createdAt", "verifiedAt", "assignedAdminId", "rejectionReason"],
+    PointsHistory: ["id", "userId", "submissionId", "points", "createdAt"],
+    Notification: ["id", "userId", "email", "type", "title", "message", "read", "createdAt"],
+    Bin: ["id", "name", "address", "latitude", "longitude", "locationType", "photoUrl", "addedBy", "createdAt"],
+    Reward: ["reward_id", "title", "description", "points_required", "image_url", "status", "category", "stock", "created_at", "updated_at"],
+    RewardRedemption: ["redemption_id", "user_id", "reward_id", "code_id", "code", "redeemed_at", "expires_at", "status", "used_at", "updated_at"],
+  };
+
+  const allowedColumns = schemas[table] || [];
+
   for (const [key, value] of Object.entries(data)) {
     let val = value;
-    if (value instanceof Date) {
-      val = value.toISOString();
+    if (value instanceof Date || (value && typeof value === "object" && typeof (value as any).toISOString === "function")) {
+      val = (value as any).toISOString();
     } else if (value && typeof value === "object" && "toDate" in value) {
       val = (value as any).toDate().toISOString();
     }
 
-    if (table === "User") {
-      if (key === "imageUrl") result["imageUrl"] = val;
-      else if (key === "joinedAt") result["joinedAt"] = val;
-      else if (key === "updatedAt") result["updatedAt"] = val;
-      else result[key] = val;
-    } else if (table === "Submission") {
-      if (key === "userId") result["userId"] = val;
-      else if (key === "wasteType") result["wasteType"] = val;
-      else if (key === "imageUrl") result["imageUrl"] = val;
-      else if (key === "imagePath") result["imagePath"] = val;
-      else if (key === "imageSize") result["imageSize"] = val;
-      else if (key === "imageMimeType") result["imageMimeType"] = val;
-      else if (key === "pointsAwarded") result["pointsAwarded"] = val;
-      else if (key === "createdAt") result["createdAt"] = val;
-      else if (key === "verifiedAt") result["verifiedAt"] = val;
-      else if (key === "assignedAdminId") result["assignedAdminId"] = val;
-      else if (key === "rejectionReason") result["rejectionReason"] = val;
-      else result[key] = val;
-    } else if (table === "PointsHistory") {
-      if (key === "userId") result["userId"] = val;
-      else if (key === "submissionId") result["submissionId"] = val;
-      else if (key === "createdAt") result["createdAt"] = val;
-      else result[key] = val;
-    } else if (table === "Notification") {
-      if (key === "userId") result["userId"] = val;
-      else if (key === "createdAt") result["createdAt"] = val;
-      else result[key] = val;
-    } else if (table === "Bin") {
-      if (key === "locationType") result["locationType"] = val;
-      else if (key === "photoUrl") result["photoUrl"] = val;
-      else if (key === "addedBy") result["addedBy"] = val;
-      else if (key === "createdAt") result["createdAt"] = val;
-      else result[key] = val;
-    } else {
+    if (allowedColumns.length === 0 || allowedColumns.includes(key)) {
       result[key] = val;
     }
   }
@@ -82,48 +62,13 @@ function fromPostgres(table: string, data: any): any {
     let val = value;
     // Map timestamp strings to mock Firestore timestamps
     if (
-      (key.toLowerCase().includes("at") || key.toLowerCase().includes("date") || key === "created_at" || key === "updated_at") &&
+      (key.toLowerCase().endsWith("at") || key.toLowerCase().endsWith("date") || key === "created_at" || key === "updated_at") &&
       typeof value === "string"
     ) {
       val = mockTimestamp(value);
     }
 
-    if (table === "User") {
-      if (key === "imageUrl") result["imageUrl"] = val;
-      else if (key === "joinedAt") result["joinedAt"] = val;
-      else if (key === "updatedAt") result["updatedAt"] = val;
-      else result[key] = val;
-    } else if (table === "Submission") {
-      if (key === "userId") result["userId"] = val;
-      else if (key === "wasteType") result["wasteType"] = val;
-      else if (key === "imageUrl") result["imageUrl"] = val;
-      else if (key === "imagePath") result["imagePath"] = val;
-      else if (key === "imageSize") result["imageSize"] = val;
-      else if (key === "imageMimeType") result["imageMimeType"] = val;
-      else if (key === "pointsAwarded") result["pointsAwarded"] = val;
-      else if (key === "createdAt") result["createdAt"] = val;
-      else if (key === "verifiedAt") result["verifiedAt"] = val;
-      else if (key === "assignedAdminId") result["assignedAdminId"] = val;
-      else if (key === "rejectionReason") result["rejectionReason"] = val;
-      else result[key] = val;
-    } else if (table === "PointsHistory") {
-      if (key === "userId") result["userId"] = val;
-      else if (key === "submissionId") result["submissionId"] = val;
-      else if (key === "createdAt") result["createdAt"] = val;
-      else result[key] = val;
-    } else if (table === "Notification") {
-      if (key === "userId") result["userId"] = val;
-      else if (key === "createdAt") result["createdAt"] = val;
-      else result[key] = val;
-    } else if (table === "Bin") {
-      if (key === "locationType") result["locationType"] = val;
-      else if (key === "photoUrl") result["photoUrl"] = val;
-      else if (key === "addedBy") result["addedBy"] = val;
-      else if (key === "createdAt") result["createdAt"] = val;
-      else result[key] = val;
-    } else {
-      result[key] = val;
-    }
+    result[key] = val;
   }
   return result;
 }
@@ -141,7 +86,7 @@ function mockTimestamp(dateStr: string) {
 }
 
 class DocumentSnapshot {
-  constructor(public id: string, private dataObj: any) {}
+  constructor(public id: string, private dataObj: any, public ref: DocumentReference) {}
   get exists() {
     return !!this.dataObj;
   }
@@ -166,6 +111,14 @@ class QuerySnapshot {
 // Local storage files for non-database collections like settings
 let settingsMemory: Record<string, any> = {
   pointsConfig: {
+    "Plastic Bottles": 15,
+    "Paper Waste": 10,
+    "Metal Cans": 25,
+    "Glass Bottles": 20,
+    "Cardboard": 12,
+    "E-Waste": 50,
+    "Organic Waste": 18,
+    "Mixed Recyclables": 8,
     PLASTIC: 15,
     GLASS: 20,
     PAPER: 10,
@@ -182,7 +135,7 @@ class DocumentReference {
     const table = getTableName(this.collection);
     if (table === "settings") {
       const data = settingsMemory[this.id];
-      return new DocumentSnapshot(this.id, data);
+      return new DocumentSnapshot(this.id, data, this);
     }
 
     const { data, error } = await supabaseAdmin
@@ -192,9 +145,9 @@ class DocumentReference {
       .maybeSingle();
 
     if (error || !data) {
-      return new DocumentSnapshot(this.id, null);
+      return new DocumentSnapshot(this.id, null, this);
     }
-    return new DocumentSnapshot(this.id, fromPostgres(table, data));
+    return new DocumentSnapshot(this.id, fromPostgres(table, data), this);
   }
 
   async set(data: any, options?: { merge?: boolean }) {
@@ -287,8 +240,8 @@ class Query {
       const dbCol = Object.keys(col)[0] || w.field;
 
       let val = w.value;
-      if (val instanceof Date) {
-        val = val.toISOString();
+      if (val instanceof Date || (val && typeof val === "object" && typeof (val as any).toISOString === "function")) {
+        val = (val as any).toISOString();
       }
 
       if (w.op === "==" || w.op === "=") {
@@ -323,7 +276,8 @@ class Query {
 
     const docs = (data || []).map((row: any) => {
       const docId = row.id || row.reward_id || row.redemption_id || "";
-      return new DocumentSnapshot(String(docId), fromPostgres(table, row));
+      const ref = new DocumentReference(this.collection, String(docId));
+      return new DocumentSnapshot(String(docId), fromPostgres(table, row), ref);
     });
 
     return new QuerySnapshot(docs);
@@ -393,21 +347,26 @@ export const adminDb = {
   },
   async runTransaction(callback: (transaction: any) => Promise<any>) {
     // Transaction wrapper for sequential updates
+    const operations: Array<() => Promise<void>> = [];
     const transaction = {
       async get(docRef: DocumentReference) {
         return docRef.get();
       },
       set(docRef: DocumentReference, data: any, options?: any) {
-        docRef.set(data, options);
+        operations.push(() => docRef.set(data, options));
       },
       update(docRef: DocumentReference, data: any) {
-        docRef.update(data);
+        operations.push(() => docRef.update(data));
       },
       delete(docRef: DocumentReference) {
-        docRef.delete();
+        operations.push(() => docRef.delete());
       },
     };
-    return callback(transaction);
+    const result = await callback(transaction);
+    for (const op of operations) {
+      await op();
+    }
+    return result;
   },
 };
 

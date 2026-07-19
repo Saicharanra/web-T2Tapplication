@@ -30,6 +30,9 @@ type UserStats = {
   totalPoints: number;
   level: string;
   totalSubmissions: number;
+  verifiedSubmissions: number;
+  pendingSubmissions: number;
+  rejectedSubmissions: number;
   streak: number;
 };
 
@@ -80,6 +83,9 @@ export default function UserDashboard() {
     totalPoints: 0,
     level: "BRONZE",
     totalSubmissions: 0,
+    verifiedSubmissions: 0,
+    pendingSubmissions: 0,
+    rejectedSubmissions: 0,
     streak: 0,
   });
   const [pointsGuide, setPointsGuide] = useState(DEFAULT_POINTS_GUIDE);
@@ -252,13 +258,16 @@ export default function UserDashboard() {
 
   const fetchUserStats = async () => {
     try {
-      const response = await fetchWithAuth('/api/users/stats');
+      const response = await fetchWithAuth('/api/users/profile/stats');
       if (response.ok) {
         const data = await response.json();
         setUserStats({
           totalPoints: typeof data.totalPoints === "number" ? data.totalPoints : 0,
           level: typeof data.level === "string" ? data.level : "BRONZE",
           totalSubmissions: typeof data.totalSubmissions === "number" ? data.totalSubmissions : 0,
+          verifiedSubmissions: typeof data.verifiedSubmissions === "number" ? data.verifiedSubmissions : 0,
+          pendingSubmissions: typeof data.pendingSubmissions === "number" ? data.pendingSubmissions : 0,
+          rejectedSubmissions: typeof data.rejectedSubmissions === "number" ? data.rejectedSubmissions : 0,
           streak: typeof data.streak === "number" ? data.streak : 0,
         });
       }
@@ -535,6 +544,20 @@ export default function UserDashboard() {
               </div>
               <div className="h-12 w-12 bg-purple-200 rounded-full flex items-center justify-center">
                 <TrendingUp className="h-6 w-6 text-purple-700" />
+              </div>
+            </div>
+            <div className="flex justify-between items-center mt-4 pt-3 border-t border-purple-200/50 text-[11px] sm:text-xs font-semibold text-purple-800">
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                <span>Pending: {userStats.pendingSubmissions}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                <span>Accepted: {userStats.verifiedSubmissions}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                <span>Rejected: {userStats.rejectedSubmissions}</span>
               </div>
             </div>
           </CardContent>
@@ -974,8 +997,16 @@ export default function UserDashboard() {
                           })()
                         }
                       </span>
-                      <span className="font-bold text-green-600">
-                        +{typeof submission.pointsAwarded === "number" ? submission.pointsAwarded : "?"}
+                      <span className={`font-bold ${
+                        submission.status === 'VERIFIED' ? 'text-green-600' :
+                        submission.status === 'PENDING' ? 'text-amber-600' : 'text-red-500'
+                      }`}>
+                        +{submission.status === 'VERIFIED'
+                          ? submission.pointsAwarded
+                          : submission.status === 'PENDING'
+                          ? (pointsGuide.find(p => p.category === submission.wasteType)?.points || 0)
+                          : 0
+                        } pts {submission.status === 'PENDING' && '(Pending)'}
                       </span>
                     </div>
                   </div>

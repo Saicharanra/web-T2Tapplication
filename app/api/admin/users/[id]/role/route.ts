@@ -35,7 +35,7 @@ export async function PATCH(
     // Update user role in Firestore
     await adminDb.collection("users").doc(targetUserId).update({
       role,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: new Date(),
     });
 
     return NextResponse.json({ message: "User role updated successfully" });

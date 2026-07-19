@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { notify } from "@/lib/notifications/notify";
 import { Leaf, Mail, Lock, Loader2, ArrowRight, User, MapPin, Eye, EyeOff, X } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/lib/supabase-client";
 
 export default function SignUpClient() {
   const [firstName, setFirstName] = useState("");
@@ -15,43 +15,35 @@ export default function SignUpClient() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isPendingVerification, setIsPendingVerification] = useState(false);
   const router = useRouter();
-
-  // OTP Verification States
-  const [step, setStep] = useState<"signup" | "otp">("signup");
-  const [otpValues, setOtpValues] = useState<string[]>(Array(6).fill(""));
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [otpError, setOtpError] = useState("");
-  const [resendTimer, setResendTimer] = useState(0);
-  const [resendSuccess, setResendSuccess] = useState(false);
-
-  // Timer for resending OTP
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const interval = setInterval(() => setResendTimer((prev) => prev - 1), 1000);
-    return () => clearInterval(interval);
-  }, [resendTimer]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      // Send OTP to user's email first
-      const res = await fetch("/api/auth/otp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `${firstName} ${lastName}`.trim(),
-          email: email.trim(),
-        }),
+      // 1. Register user directly via Supabase Auth
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            full_name: `${firstName} ${lastName}`.trim(),
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send OTP verification email");
+      if (signUpError) throw signUpError;
 
-      setResendTimer(60);
-      setStep("otp");
+      // 2. Check if verification is pending (session is null when email confirmation is enabled)
+      if (data.user && !data.session) {
+        setIsPendingVerification(true);
+        return;
+      }
+
+      router.push("/dashboard/home");
     } catch (err: any) {
       setError(err.message || "Failed to create account");
     } finally {
@@ -59,123 +51,20 @@ export default function SignUpClient() {
     }
   };
 
-  const handleResendOtp = async () => {
-    if (resendTimer > 0) return;
-    setOtpError("");
-    setResendSuccess(false);
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setLoading(true);
     try {
-      const res = await fetch("/api/auth/otp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `${firstName} ${lastName}`.trim(),
-          email: email.trim(),
-        }),
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/auth/callback",
+        },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to resend verification email");
-      setResendTimer(60);
-      setResendSuccess(true);
-      setTimeout(() => setResendSuccess(false), 5000);
+      if (error) throw error;
     } catch (err: any) {
-      setOtpError(err.message || "Failed to resend OTP");
-    }
-  };
-
-  const handleVerifyAndRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setOtpError("");
-    setOtpLoading(true);
-
-    const otpCode = otpValues.join("");
-    if (otpCode.length !== 6) {
-      setOtpError("Please enter the full 6-digit verification code.");
-      setOtpLoading(false);
-      return;
-    }
-
-    try {
-      // 1. Verify OTP
-      const verifyRes = await fetch("/api/auth/otp/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), otp: otpCode }),
-      });
-      const verifyData = await verifyRes.json();
-      if (!verifyRes.ok) throw new Error(verifyData.error || "Verification failed");
-
-      // 2. Register user via API route (creates row in Supabase User table)
-      const registerRes = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `${firstName} ${lastName}`.trim(),
-          email: email.trim(),
-          password, // stored hashed server-side if needed, optional
-        }),
-      });
-      const registerData = await registerRes.json();
-      if (!registerRes.ok) throw new Error(registerData.error || "Registration failed");
-
-      const userId = registerData.userId;
-
-      // 3. Store userId in localStorage
-      localStorage.setItem("t2t_user_id", userId);
-
-      // 4. Dispatch Welcome Notification
-      try {
-        await notify({
-          userId,
-          email: email.trim(),
-          type: "user_created",
-          title: "Account Created Successfully! 🌍",
-          message: "Welcome to Trash2Treasure! Your account has been successfully created. Thank you for joining our eco-friendly movement!",
-          emailTemplate: "welcome",
-          emailProps: { name: `${firstName} ${lastName}`.trim() },
-        });
-      } catch (notifErr) {
-        console.error("⚠️ Failed to dispatch welcome notifications:", notifErr);
-      }
-
-      router.push("/dashboard/home");
-    } catch (err: any) {
-      setOtpError(err.message || "Verification and registration failed");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const handleOtpChange = (index: number, value: string) => {
-    if (isNaN(Number(value))) return;
-    const newOtpValues = [...otpValues];
-    newOtpValues[index] = value.substring(value.length - 1);
-    setOtpValues(newOtpValues);
-    if (value && index < 5) {
-      document.getElementById(`otp-input-${index + 1}`)?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace") {
-      if (!otpValues[index] && index > 0) {
-        const newOtpValues = [...otpValues];
-        newOtpValues[index - 1] = "";
-        setOtpValues(newOtpValues);
-        document.getElementById(`otp-input-${index - 1}`)?.focus();
-      } else {
-        const newOtpValues = [...otpValues];
-        newOtpValues[index] = "";
-        setOtpValues(newOtpValues);
-      }
-    }
-  };
-
-  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const pasteData = e.clipboardData.getData("text").trim();
-    if (/^\d{6}$/.test(pasteData)) {
-      setOtpValues(pasteData.split(""));
-      document.getElementById("otp-input-5")?.focus();
+      setError(err.message || "Failed to initiate Google sign in");
+      setLoading(false);
     }
   };
 
@@ -254,15 +143,39 @@ export default function SignUpClient() {
             <span className="text-2xl font-bold text-white tracking-tight">Trash2Treasure</span>
           </div>
 
-          <AnimatePresence mode="wait">
-            {step === "signup" ? (
-              <motion.div
-                key="signup-form"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-              >
+          <div>
+            {isPendingVerification ? (
+              <div className="text-center space-y-6">
+                <div className="mx-auto w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center border border-emerald-500/20 shadow-lg shadow-emerald-500/10">
+                  <Mail className="w-8 h-8 animate-bounce" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Check your email</h2>
+                  <p className="text-slate-400 font-medium">
+                    We've sent a verification link to <span className="text-white font-bold">{email}</span>. Please click the link to activate your account.
+                  </p>
+                </div>
+                
+                <div className="p-5 bg-slate-900/40 border border-white/5 rounded-2xl text-left text-sm text-slate-400 space-y-3">
+                  <p className="font-bold text-slate-300">Didn't receive the email?</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>Check your spam or junk folder.</li>
+                    <li>Verify that the email address you entered is correct.</li>
+                    <li>If you are running locally, click the verification link printed in your server terminal logs.</li>
+                  </ul>
+                </div>
+
+                <div className="pt-2">
+                  <Link
+                    href="/sign-in"
+                    className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-bold transition-all shadow-md active:scale-[0.98]"
+                  >
+                    Back to Sign In
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <>
                 <div className="mb-10">
                   <h2 className="text-3xl font-bold text-white tracking-tight">Create Account</h2>
                   <p className="text-slate-400 mt-2 font-medium">Join our mission for a cleaner planet</p>
@@ -281,7 +194,7 @@ export default function SignUpClient() {
                         {error}
                       </motion.div>
                     )}
-                  </AnimatePresence>
+                  </  AnimatePresence>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -363,111 +276,41 @@ export default function SignUpClient() {
                   >
                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Create Account <ArrowRight className="w-5 h-5" /></>}
                   </button>
-                </form>
 
-                <p className="mt-10 text-center text-slate-400 font-medium">
-                  Already have an account?{" "}
-                  <Link href="/sign-in" className="text-emerald-400 font-bold hover:text-emerald-300 transition-colors underline-offset-4 hover:underline">
-                    Sign in here
-                  </Link>
-                </p>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="otp-form"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="mb-10">
-                  <h2 className="text-3xl font-bold text-white tracking-tight">Verify Email</h2>
-                  <p className="text-slate-400 mt-2 font-medium">
-                    We've sent a 6-digit verification code to <span className="text-emerald-400 font-semibold">{email}</span>. Please enter it below.
-                  </p>
-                </div>
-
-                <form className="space-y-6" onSubmit={handleVerifyAndRegister}>
-                  <AnimatePresence mode="wait">
-                    {otpError && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl p-4 text-sm flex items-start gap-3"
-                      >
-                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
-                        {otpError}
-                      </motion.div>
-                    )}
-                    {resendSuccess && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl p-4 text-sm flex items-start gap-3"
-                      >
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                        Verification code resent successfully!
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <div className="flex justify-between gap-2 md:gap-3 my-8">
-                    {otpValues.map((digit, index) => (
-                      <input
-                        key={index}
-                        id={`otp-input-${index}`}
-                        type="text"
-                        inputMode="numeric"
-                        pattern="\d*"
-                        maxLength={1}
-                        required
-                        value={digit}
-                        onChange={(e) => handleOtpChange(index, e.target.value)}
-                        onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                        onPaste={handleOtpPaste}
-                        className="w-12 h-14 md:w-14 md:h-16 text-center text-2xl font-bold bg-slate-900/50 border border-white/10 rounded-2xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all outline-none"
-                      />
-                    ))}
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-white/10"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-[#020617] px-2 text-slate-500 font-bold">Or continue with</span>
+                    </div>
                   </div>
 
                   <button
-                    type="submit"
-                    id="signup-verify"
-                    disabled={otpLoading}
-                    className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98]"
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-slate-900 hover:bg-slate-800 border border-white/10 text-white rounded-2xl font-bold transition-all shadow-md active:scale-[0.98]"
                   >
-                    {otpLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Verify & Register <ArrowRight className="w-5 h-5" /></>}
+                    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                    </svg>
+                    Google
                   </button>
-
-                  <div className="text-center space-y-4 pt-4">
-                    <p className="text-sm text-slate-400">
-                      Didn't receive the code?{" "}
-                      {resendTimer > 0 ? (
-                        <span className="text-slate-500 font-semibold">Resend in {resendTimer}s</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleResendOtp}
-                          className="text-emerald-400 font-bold hover:text-emerald-300 transition-colors underline-offset-4 hover:underline focus:outline-none"
-                        >
-                          Resend Code
-                        </button>
-                      )}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => { setStep("signup"); setOtpError(""); }}
-                      className="text-sm text-slate-400 hover:text-white font-semibold transition-colors underline-offset-4 hover:underline focus:outline-none"
-                    >
-                      Change Email / Back
-                    </button>
-                  </div>
                 </form>
-              </motion.div>
+              </>
             )}
-          </AnimatePresence>
+
+            <p className="mt-10 text-center text-slate-400 font-medium">
+              Already have an account?{" "}
+              <Link href="/sign-in" className="text-emerald-400 font-bold hover:text-emerald-300 transition-colors underline-offset-4 hover:underline">
+                Sign in here
+              </Link>
+            </p>
+          </div>
         </motion.div>
       </div>
     </main>
