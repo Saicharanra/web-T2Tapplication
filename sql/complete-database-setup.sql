@@ -7,9 +7,9 @@
 -- TABLE OF CONTENTS
 -- ============================================
 -- PART A: INITIAL SETUP
---   1. Database Schema Creation
---   2. Clerk Webhook Support
---   3. Storage Bucket Policies
+--   1. Database Schema Creation (User, Submission, OTP, Bins, Notifications, Rewards)
+--   2. Clerk Webhook Support & Triggers
+--   3. Storage Bucket Policies & RLS
 --   4. Admin User Setup
 --
 -- PART B: VERIFICATION & DIAGNOSTICS
@@ -48,6 +48,9 @@
 -- DROP TABLE IF EXISTS "Submission" CASCADE;
 -- DROP TABLE IF EXISTS "User" CASCADE;
 
+-- Create User Role Enum Type
+CREATE TYPE user_role AS ENUM ('USER', 'ADMIN', 'OWNER', 'BUSINESS');
+
 -- ============================================
 -- Create User Table (Clerk Webhook Compatible)
 -- ============================================
@@ -60,14 +63,13 @@ CREATE TABLE IF NOT EXISTS "User" (
   "imageUrl" TEXT,                                        -- Profile picture URL (optional)
   
   -- Application-specific fields
-  role TEXT NOT NULL DEFAULT 'USER' 
-    CHECK (role IN ('USER', 'ADMIN')),
+  role user_role NOT NULL DEFAULT 'USER',
   location TEXT,                                          -- User location (set by user later)
   level TEXT NOT NULL DEFAULT 'BRONZE' 
     CHECK (level IN ('BRONZE', 'SILVER', 'GOLD', 'PLATINUM')),
   points INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'ACTIVE' 
-    CHECK (status IN ('ACTIVE', 'INACTIVE')),
+    CHECK (status IN ('ACTIVE', 'INACTIVE', 'PENDING_APPROVAL', 'SUSPENDED')),
   
   -- Timestamps
   "joinedAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -111,6 +113,109 @@ CREATE TABLE IF NOT EXISTS "PointsHistory" (
 );
 
 -- ============================================
+-- Create OTP Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS "OTP" (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  otp TEXT NOT NULL,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  "expiresAt" TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+-- ============================================
+-- Create Bin Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS "Bin" (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  address TEXT NOT NULL,
+  latitude DOUBLE PRECISION NOT NULL,
+  longitude DOUBLE PRECISION NOT NULL,
+  "locationType" TEXT NOT NULL,
+  "photoUrl" TEXT,
+  "addedBy" TEXT REFERENCES "User"(id) ON DELETE SET NULL,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- Create Notification Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS "Notification" (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "userId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  read BOOLEAN DEFAULT FALSE,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- Create Reward Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS "Reward" (
+  reward_id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  points_required INTEGER NOT NULL,
+  image_url TEXT DEFAULT '🎁',
+  status TEXT DEFAULT 'Active' CHECK (status IN ('PENDING_APPROVAL', 'Active', 'Inactive', 'Suspended')),
+  category TEXT DEFAULT 'General',
+  stock INTEGER DEFAULT 0,
+  business_id TEXT REFERENCES "User"(id) ON DELETE SET NULL,
+  company_name TEXT,
+  discount_type TEXT DEFAULT 'Percentage',
+  discount_value NUMERIC DEFAULT 0,
+  original_price NUMERIC,
+  expiry_date TIMESTAMP WITH TIME ZONE,
+  max_redemptions INTEGER DEFAULT 100,
+  remaining_redemptions INTEGER DEFAULT 100,
+  min_purchase NUMERIC DEFAULT 0,
+  terms TEXT,
+  store_location TEXT,
+  website TEXT,
+  contact_number TEXT,
+  logo_url TEXT,
+  banner_url TEXT,
+  allow_multiple BOOLEAN DEFAULT FALSE,
+  views INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- Create RewardCode Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS "RewardCode" (
+  id SERIAL PRIMARY KEY,
+  reward_id INTEGER REFERENCES "Reward"(reward_id) ON DELETE CASCADE,
+  code TEXT UNIQUE NOT NULL,
+  is_used BOOLEAN DEFAULT FALSE,
+  used_by TEXT REFERENCES "User"(id) ON DELETE SET NULL,
+  used_at TIMESTAMP WITH TIME ZONE,
+  expires_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
+-- Create RewardRedemption Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS "RewardRedemption" (
+  redemption_id SERIAL PRIMARY KEY,
+  user_id TEXT REFERENCES "User"(id) ON DELETE CASCADE,
+  reward_id INTEGER REFERENCES "Reward"(reward_id) ON DELETE SET NULL,
+  code_id INTEGER REFERENCES "RewardCode"(id) ON DELETE SET NULL,
+  code TEXT NOT NULL,
+  redeemed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE,
+  status TEXT DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','EXPIRED','USED')),
+  used_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================
 -- Create Performance Indexes
 -- ============================================
 CREATE INDEX IF NOT EXISTS idx_user_email ON "User"(email);
@@ -121,6 +226,26 @@ CREATE INDEX IF NOT EXISTS idx_submission_status ON "Submission"(status);
 CREATE INDEX IF NOT EXISTS idx_submission_createdAt ON "Submission"("createdAt");
 CREATE INDEX IF NOT EXISTS idx_points_userId ON "PointsHistory"("userId");
 CREATE INDEX IF NOT EXISTS idx_points_createdAt ON "PointsHistory"("createdAt");
+
+-- OTP Indexes
+CREATE INDEX IF NOT EXISTS idx_otp_email ON "OTP"(email);
+
+-- Bin Indexes
+CREATE INDEX IF NOT EXISTS idx_bin_addedBy ON "Bin"("addedBy");
+CREATE INDEX IF NOT EXISTS idx_bin_location ON "Bin"(latitude, longitude);
+
+-- Notification Indexes
+CREATE INDEX IF NOT EXISTS idx_notification_userId ON "Notification"("userId");
+CREATE INDEX IF NOT EXISTS idx_notification_read ON "Notification"(read);
+CREATE INDEX IF NOT EXISTS idx_notification_createdAt ON "Notification"("createdAt");
+
+-- Reward, Code and Redemption Indexes
+CREATE INDEX IF NOT EXISTS idx_reward_status ON "Reward"(status);
+CREATE INDEX IF NOT EXISTS idx_code_available ON "RewardCode"(reward_id, is_used);
+CREATE INDEX IF NOT EXISTS idx_redemption_user ON "RewardRedemption"(user_id);
+CREATE INDEX IF NOT EXISTS idx_reward_business ON "Reward"(business_id);
+CREATE UNIQUE INDEX IF NOT EXISTS unique_code_usage ON "RewardRedemption"(code_id);
+CREATE UNIQUE INDEX IF NOT EXISTS unique_user_reward ON "RewardRedemption"(user_id, reward_id);
 
 -- ============================================
 -- 2. CLERK WEBHOOK SUPPORT
@@ -143,6 +268,35 @@ CREATE TRIGGER update_user_updated_at
   BEFORE UPDATE ON "User"
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- Auto-update triggers for Reward and RewardRedemption
+CREATE OR REPLACE FUNCTION update_reward_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_reward_time ON "Reward";
+CREATE TRIGGER update_reward_time
+  BEFORE UPDATE ON "Reward"
+  FOR EACH ROW
+  EXECUTE FUNCTION update_reward_updated_at();
+
+CREATE OR REPLACE FUNCTION update_redemption_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_redemption_time ON "RewardRedemption";
+CREATE TRIGGER update_redemption_time
+  BEFORE UPDATE ON "RewardRedemption"
+  FOR EACH ROW
+  EXECUTE FUNCTION update_redemption_updated_at();
 
 -- Add columns if upgrading existing table
 DO $$ 
@@ -206,6 +360,62 @@ USING (
     AND role = 'ADMIN'
   )
 );
+
+-- ============================================
+-- 3b. ADDITIONAL RLS & BUCKET POLICIES (OTP, Bins, Notifications)
+-- ============================================
+
+-- RLS Enablement
+ALTER TABLE "OTP" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Bin" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Notification" ENABLE ROW LEVEL SECURITY;
+
+-- OTP Policies (OTP should never be accessible from the browser)
+DROP POLICY IF EXISTS "Service role manages OTPs" ON "OTP";
+CREATE POLICY "Service role manages OTPs"
+  ON "OTP" TO service_role
+  USING (true) WITH CHECK (true);
+
+-- Bin Policies (Public view, service role manage)
+DROP POLICY IF EXISTS "Anyone can view bins" ON "Bin";
+CREATE POLICY "Anyone can view bins"
+  ON "Bin" FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Service role can manage bins" ON "Bin";
+CREATE POLICY "Service role can manage bins"
+  ON "Bin" TO service_role USING (true) WITH CHECK (true);
+
+-- Notification Policies (Service role manage, users read/update own)
+DROP POLICY IF EXISTS "Service role manages notifications" ON "Notification";
+CREATE POLICY "Service role manages notifications"
+  ON "Notification" TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Users can view own notifications" ON "Notification";
+CREATE POLICY "Users can view own notifications"
+  ON "Notification" FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Users can update own notifications" ON "Notification";
+CREATE POLICY "Users can update own notifications"
+  ON "Notification" FOR UPDATE USING (true);
+
+-- Storage bucket policies for 'bin-images' (Public bucket)
+DROP POLICY IF EXISTS "Public read for bin-images" ON storage.objects;
+CREATE POLICY "Public read for bin-images"
+  ON storage.objects FOR SELECT TO public
+  USING (bucket_id = 'bin-images');
+
+DROP POLICY IF EXISTS "Service role upload to bin-images" ON storage.objects;
+CREATE POLICY "Service role upload to bin-images"
+  ON storage.objects FOR INSERT TO service_role
+  WITH CHECK (bucket_id = 'bin-images');
+
+DROP POLICY IF EXISTS "Service role delete bin-images" ON storage.objects;
+CREATE POLICY "Service role delete bin-images"
+  ON storage.objects FOR DELETE TO service_role
+  USING (bucket_id = 'bin-images');
+
+-- Enable Realtime for Notification table
+-- ALTER PUBLICATION supabase_realtime ADD TABLE "Notification";
 
 -- ============================================
 -- 4. ADMIN USER SETUP
@@ -705,6 +915,29 @@ SET "pointsAwarded" =
     ELSE 50
   END
 WHERE status = 'VERIFIED';
+
+-- Fix 10: Migrate role column from TEXT to user_role ENUM (fixes cast error 42804)
+-- Run this if you get the error: "default for column 'role' cannot be cast automatically to type user_role"
+-- 1. Create type if it doesn't exist
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+    CREATE TYPE user_role AS ENUM ('USER', 'ADMIN', 'OWNER', 'BUSINESS');
+  END IF;
+END $$;
+-- 2. Ensure all expected values exist in the enum
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'OWNER';
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'BUSINESS';
+-- 3. Drop check constraints on the role column that might conflict
+ALTER TABLE "User" DROP CONSTRAINT IF EXISTS "User_role_check";
+ALTER TABLE "User" DROP CONSTRAINT IF EXISTS "user_role_check";
+-- 4. Drop the default value constraint
+ALTER TABLE "User" ALTER COLUMN role DROP DEFAULT;
+-- 5. Alter the column type with an explicit cast
+ALTER TABLE "User" ALTER COLUMN role TYPE user_role USING role::user_role;
+-- 6. Re-apply the default constraint with correct type
+ALTER TABLE "User" ALTER COLUMN role SET DEFAULT 'USER'::user_role;
+
 
 -- ============================================
 -- 12. REPORTING & STATISTICS

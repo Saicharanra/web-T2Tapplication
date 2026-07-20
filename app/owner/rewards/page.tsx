@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import {
   Gift, Package, ShoppingBag, Star,
   Plus, Search, Edit2, Trash2, Eye, Tag, ArrowUpRight,
-  X, Loader2, AlertCircle, CheckCircle
+  X, Loader2, AlertCircle, CheckCircle, ShieldCheck, HelpCircle, Ban, ThumbsUp
 } from "lucide-react";
 
 /* ──────────────────── Types ──────────────────── */
@@ -19,12 +19,20 @@ interface Reward {
   description: string;
   points_required: number;
   image_url: string;
-  status: "Active" | "Inactive";
+  status: "Active" | "Inactive" | "PENDING_APPROVAL" | "Suspended";
   category: string;
   stock: number;
   created_at: string;
   updated_at: string;
   redemptions: number;
+  codes?: string[];
+  company_name?: string;
+  logo_url?: string;
+  banner_url?: string;
+  discount_type?: string;
+  discount_value?: number;
+  expiry_date?: string;
+  remaining_redemptions?: number;
 }
 
 interface Redemption {
@@ -45,6 +53,7 @@ interface RewardForm {
   status: "Active" | "Inactive";
   category: string;
   stock: string;
+  codes: string;
 }
 
 const emptyForm: RewardForm = {
@@ -55,9 +64,10 @@ const emptyForm: RewardForm = {
   status: "Active",
   category: "General",
   stock: "0",
+  codes: "",
 };
 
-const categories = ["All", "Merchandise", "Environment", "Gift Cards", "Experiences", "Digital", "General"];
+const categories = ["All", "Food", "Merchandise", "Environment", "Gift Cards", "Experiences", "Digital", "General"];
 
 /* ──────────────────── Component ──────────────────── */
 
@@ -71,6 +81,7 @@ export default function RewardsPage() {
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedStatus, setSelectedStatus] = useState("All");
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -84,6 +95,9 @@ export default function RewardsPage() {
   // Delete state
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Approval actions state
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   /* ──────────────── Fetch Data ──────────────── */
 
@@ -149,10 +163,34 @@ export default function RewardsPage() {
       }
 
       showToast("🎁 Reward marked as delivered and user notified!", "success");
-      // Refresh list
       fetchRedemptions();
     } catch (err: any) {
       showToast(err.message || "Failed to mark as delivered", "error");
+    }
+  };
+
+  /* ──────────────── Approval Actions ──────────────── */
+
+  const handleApprovalAction = async (rewardId: string, action: "APPROVE" | "SUSPEND" | "REJECT") => {
+    setProcessingId(rewardId);
+    try {
+      const res = await fetchWithAuth(`/api/admin/rewards/${rewardId}/approve`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `Failed to ${action.toLowerCase()} coupon`);
+      }
+
+      showToast(`Coupon campaign ${action === "APPROVE" ? "approved" : action === "SUSPEND" ? "suspended" : "rejected"} successfully!`, "success");
+      await fetchRewards();
+    } catch (err: any) {
+      showToast(err.message || "Approval update failed", "error");
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -187,9 +225,10 @@ export default function RewardsPage() {
       description: reward.description,
       points_required: String(reward.points_required),
       image_url: reward.image_url,
-      status: reward.status,
+      status: reward.status === "Active" || reward.status === "Inactive" ? reward.status : "Inactive",
       category: reward.category,
-      stock: String(reward.stock),
+      stock: String(couponStock(reward)),
+      codes: reward.codes ? reward.codes.join("\n") : "",
     });
     setFormErrors({});
     setEditingId(reward.reward_id);
@@ -197,11 +236,19 @@ export default function RewardsPage() {
     setShowModal(true);
   };
 
+  const couponStock = (r: Reward) => {
+    return r.stock !== undefined ? r.stock : 0;
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
     setSubmitting(true);
     try {
+      const codesArray = form.codes
+        ? form.codes.split(/[\n,]+/).map(c => c.trim()).filter(Boolean)
+        : [];
+
       const body = {
         title: form.title.trim(),
         description: form.description.trim(),
@@ -209,7 +256,8 @@ export default function RewardsPage() {
         image_url: form.image_url.trim() || "🎁",
         status: form.status,
         category: form.category.trim() || "General",
-        stock: Number(form.stock) || 0,
+        stock: codesArray.length > 0 ? codesArray.length : (Number(form.stock) || 0),
+        codes: codesArray,
       };
 
       const url = modalMode === "add" ? "/api/admin/rewards" : `/api/admin/rewards/${editingId}`;
@@ -262,9 +310,13 @@ export default function RewardsPage() {
   const filteredRewards = rewards.filter((reward) => {
     const matchesSearch = searchTerm === "" ||
       reward.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reward.description.toLowerCase().includes(searchTerm.toLowerCase());
+      reward.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (reward.company_name && reward.company_name.toLowerCase().includes(searchTerm.toLowerCase()));
+    
     const matchesCategory = selectedCategory === "All" || reward.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesStatus = selectedStatus === "All" || reward.status === selectedStatus;
+    
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
   /* ──────────────── Stats Data ──────────────── */
@@ -277,8 +329,6 @@ export default function RewardsPage() {
     { title: "Total Redemptions", value: stats.totalRedemptions, icon: ShoppingBag, gradient: "from-blue-500 to-indigo-600", glow: "shadow-blue-200/50" },
     { title: "Recent Claims", value: pendingRedemptions, icon: Package, gradient: "from-amber-500 to-orange-600", glow: "shadow-amber-200/50" },
   ];
-
-  /* ──────────────── Loading State ──────────────── */
 
   if (loading) {
     return (
@@ -304,8 +354,6 @@ export default function RewardsPage() {
     );
   }
 
-  /* ──────────────── Error State ──────────────── */
-
   if (error) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
@@ -325,8 +373,6 @@ export default function RewardsPage() {
     );
   }
 
-  /* ──────────────── Render ──────────────── */
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <title>Manage Rewards Catalog | Admin Panel</title>
@@ -344,7 +390,7 @@ export default function RewardsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Rewards Management</h1>
-          <p className="text-gray-500 mt-1">Manage reward catalog, track redemptions, and analyze performance</p>
+          <p className="text-gray-500 mt-1">Manage reward catalog, approve partner coupons, and track redemptions.</p>
         </div>
         <Button
           onClick={handleAdd}
@@ -374,31 +420,44 @@ export default function RewardsPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100/80 p-5">
-        <div className="flex flex-col sm:flex-row gap-4">
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100/80 p-5 space-y-4">
+        <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search rewards..."
+              placeholder="Search rewards by title, company..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 rounded-xl border-gray-200/80 focus:ring-emerald-500 focus:border-emerald-500 bg-gray-50/50"
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 whitespace-nowrap
-                  ${selectedCategory === cat
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50'
-                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200/80'}`}
-              >
-                {cat}
-              </button>
-            ))}
+          <div className="flex gap-4">
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="rounded-xl border border-gray-200 p-2 text-sm bg-white focus:ring-emerald-500"
+            >
+              <option value="All">All Statuses</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+              <option value="PENDING_APPROVAL">Pending Approval</option>
+              <option value="Suspended">Suspended</option>
+            </select>
           </div>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 border-t pt-3 border-gray-100">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 whitespace-nowrap
+                ${selectedCategory === cat
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50'
+                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200/80'}`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -408,77 +467,139 @@ export default function RewardsPage() {
           <Gift className="h-16 w-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-500 mb-2">No rewards found</h3>
           <p className="text-gray-400 mb-6">
-            {searchTerm || selectedCategory !== "All" ? "Try adjusting your search or filters" : "Get started by adding your first reward"}
+            {searchTerm || selectedCategory !== "All" || selectedStatus !== "All" ? "Try adjusting your search or filters" : "Get started by adding your first reward"}
           </p>
-          {!searchTerm && selectedCategory === "All" && (
-            <Button onClick={handleAdd} className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl">
-              <Plus className="h-4 w-4 mr-2" /> Add First Reward
-            </Button>
-          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredRewards.map((reward) => (
-            <div key={reward.reward_id} className="group bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100/80 overflow-hidden hover:-translate-y-1.5 transition-all duration-400 hover:shadow-xl">
-              {/* Card Header with Emoji + Status */}
-              <div className="relative p-5 pb-3">
-                <div className={`absolute top-4 right-4 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider
-                  ${reward.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/50' :
-                    'bg-gray-50 text-gray-500 border border-gray-200/50'}`}>
-                  {reward.status}
-                </div>
+          {filteredRewards.map((reward) => {
+            const isPartner = !!reward.company_name;
+            const isLogoUrl = reward.logo_url?.startsWith("http") || reward.logo_url?.startsWith("/");
+            return (
+              <div key={reward.reward_id} className="group bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100/80 overflow-hidden hover:-translate-y-1.5 transition-all duration-400 hover:shadow-xl relative flex flex-col justify-between">
+                <div>
+                  {/* Card Header with Logo + Status */}
+                  <div className="p-5 pb-3">
+                    <div className="flex items-start justify-between gap-4">
+                      {isPartner && isLogoUrl ? (
+                        <div className="w-12 h-12 rounded-xl border border-gray-100 shadow-sm overflow-hidden shrink-0">
+                          <img src={reward.logo_url} alt={reward.company_name} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-800 flex items-center justify-center text-2xl font-bold shadow-sm shrink-0">
+                          {reward.image_url?.length <= 3 ? reward.image_url : "🎁"}
+                        </div>
+                      )}
+                      <div className="text-right">
+                        <span className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider block shadow-sm border
+                          ${reward.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border-emerald-200/50' :
+                            reward.status === 'PENDING_APPROVAL' ? 'bg-amber-50 text-amber-600 border-amber-200/50 animate-pulse' :
+                            reward.status === 'Suspended' ? 'bg-rose-50 text-rose-600 border-rose-200/50' :
+                            'bg-gray-50 text-gray-500 border-gray-200/50'}`}>
+                          {reward.status === 'PENDING_APPROVAL' ? 'Pending Approval' : reward.status}
+                        </span>
+                      </div>
+                    </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200/50 flex items-center justify-center text-3xl shadow-sm">
-                    {reward.image_url}
+                    <div className="mt-4 min-w-0">
+                      {isPartner && (
+                        <p className="text-xs text-emerald-600 font-bold uppercase tracking-widest">{reward.company_name}</p>
+                      )}
+                      <h3 className="font-bold text-gray-900 text-base truncate mt-0.5">{reward.title}</h3>
+                      <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed">{reward.description}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0 pt-1">
-                    <h3 className="font-bold text-gray-900 text-base truncate">{reward.title}</h3>
-                    <p className="text-xs text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">{reward.description}</p>
+
+                  {/* Details */}
+                  <div className="px-5 pb-3 space-y-2">
+                    <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                      <span className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
+                        <Tag className="h-3 w-3" /> Category
+                      </span>
+                      <span className="text-xs font-semibold text-gray-700 bg-gray-50 px-2 py-0.5 rounded-md">{reward.category}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                      <span className="text-xs text-gray-400 font-medium">Points Cost</span>
+                      <span className="text-sm font-bold text-emerald-600">{reward.points_required.toLocaleString()} pts</span>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                      <span className="text-xs text-gray-400 font-medium">Stock / Remaining</span>
+                      <span className={`text-xs font-bold ${reward.stock === 0 ? 'text-rose-500' : reward.stock < 10 ? 'text-amber-600' : 'text-gray-700'}`}>
+                        {reward.stock >= 999 ? '∞ Unlimited' : `${reward.remaining_redemptions ?? reward.stock} left`}
+                      </span>
+                    </div>
+                    {reward.discount_value !== undefined && (
+                      <div className="flex justify-between items-center py-1.5">
+                        <span className="text-xs text-gray-400 font-medium">Discount Offer</span>
+                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                          {reward.discount_type === 'Percentage' ? `${reward.discount_value}% OFF` : `₹${reward.discount_value} OFF`}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* Details */}
-              <div className="px-5 pb-3 space-y-2">
-                <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
-                  <span className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
-                    <Tag className="h-3 w-3" /> Category
-                  </span>
-                  <span className="text-xs font-semibold text-gray-700 bg-gray-50 px-2 py-0.5 rounded-md">{reward.category}</span>
-                </div>
-                <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
-                  <span className="text-xs text-gray-400 font-medium">Points Cost</span>
-                  <span className="text-sm font-bold text-emerald-600">{reward.points_required.toLocaleString()} pts</span>
-                </div>
-                <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
-                  <span className="text-xs text-gray-400 font-medium">Stock</span>
-                  <span className={`text-xs font-bold ${reward.stock === 0 ? 'text-rose-500' : reward.stock < 10 ? 'text-amber-600' : 'text-gray-700'}`}>
-                    {reward.stock >= 999 ? '∞ Unlimited' : reward.stock}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-1.5">
-                  <span className="text-xs text-gray-400 font-medium">Redemptions</span>
-                  <span className="text-xs font-bold text-blue-600 flex items-center gap-1">
-                    <ArrowUpRight className="h-3 w-3" /> {reward.redemptions}
-                  </span>
-                </div>
-              </div>
+                {/* Actions (Approvals / Editing) */}
+                <div className="px-5 pb-5 pt-2 border-t border-gray-50 mt-2 space-y-2">
+                  {reward.status === "PENDING_APPROVAL" ? (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={processingId === reward.reward_id}
+                        onClick={() => handleApprovalAction(reward.reward_id, "APPROVE")}
+                        className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl text-xs font-bold h-9"
+                      >
+                        {processingId === reward.reward_id ? "..." : <><ThumbsUp className="h-3.5 w-3.5 mr-1" /> Approve</>}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={processingId === reward.reward_id}
+                        onClick={() => handleApprovalAction(reward.reward_id, "REJECT")}
+                        className="flex-1 border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold h-9"
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      {reward.status === "Active" ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={processingId === reward.reward_id}
+                          onClick={() => handleApprovalAction(reward.reward_id, "SUSPEND")}
+                          className="flex-1 border-amber-200 text-amber-600 hover:bg-amber-50 rounded-xl text-xs font-bold h-9"
+                        >
+                          <Ban className="h-3 w-3 mr-1" /> Suspend
+                        </Button>
+                      ) : reward.status === "Suspended" ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={processingId === reward.reward_id}
+                          onClick={() => handleApprovalAction(reward.reward_id, "APPROVE")}
+                          className="flex-1 border-emerald-200 text-emerald-600 hover:bg-emerald-50 rounded-xl text-xs font-bold h-9"
+                        >
+                          <ThumbsUp className="h-3 w-3 mr-1" /> Activate
+                        </Button>
+                      ) : null}
 
-              {/* Actions */}
-              <div className="px-5 pb-5 pt-2 flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleEdit(reward)}
-                  className="flex-1 rounded-xl text-xs h-9 border-gray-200/80 hover:bg-gray-50">
-                  <Edit2 className="h-3 w-3 mr-1.5" /> Edit
-                </Button>
-                <Button variant="outline" size="sm"
-                  onClick={() => setDeleteConfirm(reward.reward_id)}
-                  className="rounded-xl text-xs h-9 border-gray-200/80 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 px-2.5">
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleEdit(reward)}
+                        className="rounded-xl text-xs h-9 border-gray-200/80 hover:bg-gray-50 px-3">
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                      <Button variant="outline" size="sm"
+                        onClick={() => setDeleteConfirm(reward.reward_id)}
+                        className="rounded-xl text-xs h-9 border-gray-200/80 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 px-3">
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -491,7 +612,7 @@ export default function RewardsPage() {
             </div>
             <div>
               <h2 className="text-base font-bold text-gray-900">Recent Redemptions</h2>
-              <p className="text-[11px] text-gray-400">Latest reward claims</p>
+              <p className="text-[11px] text-gray-400">Latest reward claims across the platform</p>
             </div>
           </div>
         </div>
@@ -563,7 +684,7 @@ export default function RewardsPage() {
         )}
       </div>
 
-      {/* ──── Add / Edit Modal ──── */}
+      {/* Add / Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
@@ -586,7 +707,6 @@ export default function RewardsPage() {
 
             {/* Modal Body */}
             <div className="p-5 space-y-4">
-              {/* Title */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Title *</label>
                 <Input
@@ -598,7 +718,6 @@ export default function RewardsPage() {
                 {formErrors.title && <p className="text-xs text-rose-500 mt-1">{formErrors.title}</p>}
               </div>
 
-              {/* Description */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Description</label>
                 <textarea
@@ -610,7 +729,6 @@ export default function RewardsPage() {
                 />
               </div>
 
-              {/* Points + Stock Row */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Points Required *</label>
@@ -638,7 +756,6 @@ export default function RewardsPage() {
                 </div>
               </div>
 
-              {/* Image URL */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Image / Emoji</label>
                 <Input
@@ -649,7 +766,17 @@ export default function RewardsPage() {
                 />
               </div>
 
-              {/* Category + Status Row */}
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Pre-defined Coupon Codes (One per line or comma-separated)</label>
+                <textarea
+                  value={form.codes}
+                  onChange={(e) => setForm({ ...form, codes: e.target.value })}
+                  placeholder="e.g.&#10;MCD-100-XYZ&#10;MCD-100-ABC"
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-none bg-white font-mono"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Category</label>
@@ -698,7 +825,7 @@ export default function RewardsPage() {
         </div>
       )}
 
-      {/* ──── Delete Confirmation Modal ──── */}
+      {/* Delete Confirmation Modal */}
       {deleteConfirm !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
@@ -717,7 +844,7 @@ export default function RewardsPage() {
               <Button
                 onClick={() => handleDelete(deleteConfirm)}
                 disabled={deleting}
-                className="flex-1 bg-rose-500 hover:bg-rose-600 text-white rounded-xl"
+                className="flex-1 bg-rose-50 hover:bg-rose-600 text-white rounded-xl"
               >
                 {deleting ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting...</>

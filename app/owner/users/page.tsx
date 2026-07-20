@@ -230,6 +230,7 @@ export default function UsersPage() {
               <option value="ALL">All Roles</option>
               <option value="ADMIN">Admin</option>
               <option value="USER">User</option>
+              <option value="BUSINESS">Business</option>
             </select>
           </div>
         </CardContent>
@@ -278,6 +279,7 @@ export default function UsersPage() {
                           >
                             <option value="USER">User</option>
                             <option value="ADMIN">Admin</option>
+                            <option value="BUSINESS">Business</option>
                           </select>
                           {updatingUserId === user.id && (
                             <Recycle className="h-4 w-4 animate-spin text-blue-500" />

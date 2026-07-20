@@ -1,36 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession, adminDb } from "@/lib/firebase-admin";
-
-
+import { verifySession } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * PUT: Update a reward by ID
+ * PUT: Update a reward by ID (Admin)
  */
 export async function PUT(
   req: NextRequest,
   props: { params: Promise<{ id: string }> }
 ) {
   const params = await props.params;
+  const { id: rewardId } = params;
+
   try {
     const decodedToken = await verifySession(req);
     const userId = decodedToken.uid;
+    const userRole = decodedToken.role;
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Verify Admin Role
-    const adminUserDoc = await adminDb.collection("users").doc(userId).get();
-    if (!adminUserDoc.exists || !["ADMIN","OWNER"].includes(adminUserDoc.data()?.role)) {
+    if (!userId || userRole !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
-    const { id } = params;
     const body = await req.json();
-    const { title, description, points_required, image_url, status, category, stock } = body;
+    const { title, description, points_required, image_url, status, category, stock, codes } = body;
 
     // Validation
     if (title !== undefined && (typeof title !== "string" || title.trim().length === 0)) {
@@ -43,75 +38,103 @@ export async function PUT(
 
     // Build update object
     const updateData: Record<string, any> = {
-        updated_at: new Date()
+      updated_at: new Date().toISOString()
     };
+
     if (title !== undefined) updateData.title = title.trim();
     if (description !== undefined) updateData.description = description.trim();
     if (points_required !== undefined) updateData.points_required = points_required;
     if (image_url !== undefined) updateData.image_url = image_url.trim();
     if (status !== undefined) updateData.status = status;
     if (category !== undefined) updateData.category = category.trim();
-    if (stock !== undefined) updateData.stock = stock;
 
-    const rewardRef = adminDb.collection("rewards").doc(id);
-    const rewardDoc = await rewardRef.get();
+    if (codes !== undefined) {
+      const processedCodes = Array.isArray(codes)
+        ? codes.map((c: any) => String(c).trim()).filter(Boolean)
+        : [];
+      
+      if (processedCodes.length > 0) {
+        // Clear unused codes
+        await supabaseAdmin
+          .from("RewardCode")
+          .delete()
+          .eq("reward_id", rewardId)
+          .eq("is_used", false);
 
-    if (!rewardDoc.exists) {
-      return NextResponse.json({ error: "Reward not found" }, { status: 404 });
+        const codesData = processedCodes.map(code => ({
+          reward_id: Number(rewardId),
+          code,
+          is_used: false,
+          created_at: new Date().toISOString()
+        }));
+
+        await supabaseAdmin.from("RewardCode").insert(codesData);
+        updateData.stock = processedCodes.length;
+        updateData.max_redemptions = processedCodes.length;
+        updateData.remaining_redemptions = processedCodes.length;
+      }
+    } else if (stock !== undefined) {
+      updateData.stock = stock;
     }
 
-    await rewardRef.update(updateData);
+    const { data: updatedReward, error } = await supabaseAdmin
+      .from("Reward")
+      .update(updateData)
+      .eq("reward_id", rewardId)
+      .select("*")
+      .single();
 
-    return NextResponse.json({ 
-        reward: { reward_id: id, ...rewardDoc.data(), ...updateData } 
-    });
+    if (error || !updatedReward) {
+      console.error("Error updating reward:", error);
+      return NextResponse.json({ error: "Reward not found or update failed" }, { status: 404 });
+    }
+
+    return NextResponse.json({ reward: updatedReward });
+
   } catch (error: any) {
     console.error("Error in PUT /api/admin/rewards/[id]:", error);
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (error.message.startsWith("Unauthorized")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    return NextResponse.json(
-      { error: "Internal server error", message: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 /**
- * DELETE: Delete a reward by ID
+ * DELETE: Delete a reward by ID (Admin)
  */
 export async function DELETE(
   req: NextRequest,
   props: { params: Promise<{ id: string }> }
 ) {
   const params = await props.params;
+  const { id: rewardId } = params;
+
   try {
     const decodedToken = await verifySession(req);
     const userId = decodedToken.uid;
+    const userRole = decodedToken.role;
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Verify Admin Role
-    const adminUserDoc = await adminDb.collection("users").doc(userId).get();
-    if (!adminUserDoc.exists || !["ADMIN","OWNER"].includes(adminUserDoc.data()?.role)) {
+    if (!userId || userRole !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
-    const { id } = params;
+    const { error } = await supabaseAdmin
+      .from("Reward")
+      .delete()
+      .eq("reward_id", rewardId);
 
-    await adminDb.collection("rewards").doc(id).delete();
+    if (error) {
+      console.error("Error deleting reward:", error);
+      return NextResponse.json({ error: "Failed to delete reward" }, { status: 500 });
+    }
 
     return NextResponse.json({ message: "Reward deleted successfully" });
   } catch (error: any) {
     console.error("Error in DELETE /api/admin/rewards/[id]:", error);
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (error.message.startsWith("Unauthorized")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    return NextResponse.json(
-      { error: "Internal server error", message: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

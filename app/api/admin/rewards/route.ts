@@ -1,27 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession, adminDb } from "@/lib/firebase-admin";
-
+import { verifySession } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * GET: Fetch all rewards with redemption counts
+ * GET: Fetch all rewards with redemption counts for Admins
  * Query params: ?search=, ?status=, ?category=
  */
 export async function GET(req: NextRequest) {
   try {
     const decodedToken = await verifySession(req);
     const userId = decodedToken.uid;
+    const userRole = decodedToken.role;
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Verify Admin Role
-    const adminUserDoc = await adminDb.collection("users").doc(userId).get();
-    if (!adminUserDoc.exists || !["ADMIN","OWNER"].includes(adminUserDoc.data()?.role)) {
-      return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+    if (!userId || userRole !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden: Admin role required" }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -29,52 +24,45 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status") || "";
     const category = searchParams.get("category") || "";
 
-    // Fetch all rewards
-    let query: any = adminDb.collection("rewards");
+    // 1. Fetch all rewards
+    let query = supabaseAdmin.from("Reward").select("*");
 
     if (status && status !== "All") {
-      query = query.where("status", "==", status);
+      query = query.eq("status", status);
     }
 
     if (category && category !== "All") {
-      query = query.where("category", "==", category);
+      query = query.eq("category", category);
     }
 
-    const snapshot = await query.get();
-    let rewards = snapshot.docs.map((doc: any) => ({
-      reward_id: doc.id,
-      ...doc.data(),
-      created_at: doc.data().created_at?.toDate?.() || doc.data().created_at,
-    }));
-
-    // Sort in memory to avoid needing a composite index for where + orderBy
-    rewards.sort((a: any, b: any) => {
-      const dateA = a.created_at instanceof Date ? a.created_at.getTime() : new Date(a.created_at).getTime();
-      const dateB = b.created_at instanceof Date ? b.created_at.getTime() : new Date(b.created_at).getTime();
-      return dateB - dateA; // Descending
-    });
-
-    // Filter by search (Firestore doesn't support case-insensitive ilike natively without complex setup)
     if (search) {
-      const lowerSearch = search.toLowerCase();
-      rewards = rewards.filter((r: any) => 
-        r.title.toLowerCase().includes(lowerSearch) || 
-        r.description.toLowerCase().includes(lowerSearch)
-      );
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,company_name.ilike.%${search}%`);
     }
 
-    // Fetch redemption counts per reward
-    const redemptionsSnapshot = await adminDb.collection("redemptions").get();
-    const redemptions = redemptionsSnapshot.docs.map(doc => doc.data());
+    const { data: rewards, error: rewardsError } = await query.order("created_at", { ascending: false });
+
+    if (rewardsError) {
+      console.error("Error fetching rewards:", rewardsError);
+      return NextResponse.json({ error: "Failed to fetch rewards" }, { status: 500 });
+    }
+
+    // 2. Fetch redemptions count to enhance rewards
+    const { data: redemptions, error: redemptionsError } = await supabaseAdmin
+      .from("RewardRedemption")
+      .select("reward_id, redemption_id");
+
+    if (redemptionsError) {
+      console.error("Error fetching redemptions count:", redemptionsError);
+    }
 
     // Build redemption count map
-    const redemptionMap = new Map<string, number>();
-    redemptions.forEach((r: any) => {
+    const redemptionMap = new Map<number, number>();
+    (redemptions || []).forEach((r: any) => {
       redemptionMap.set(r.reward_id, (redemptionMap.get(r.reward_id) || 0) + 1);
     });
 
     // Enhance rewards with redemption counts
-    const enhancedRewards = rewards.map((reward: any) => ({
+    const enhancedRewards = (rewards || []).map((reward: any) => ({
       ...reward,
       redemptions: redemptionMap.get(reward.reward_id) || 0,
     }));
@@ -82,7 +70,7 @@ export async function GET(req: NextRequest) {
     // Stats
     const totalRewards = enhancedRewards.length;
     const activeRewards = enhancedRewards.filter((r: any) => r.status === "Active").length;
-    const totalRedemptions = redemptions.length;
+    const totalRedemptions = redemptions?.length || 0;
 
     return NextResponse.json({
       rewards: enhancedRewards,
@@ -94,36 +82,28 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Error in GET /api/admin/rewards:", error);
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (error.message.startsWith("Unauthorized")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    return NextResponse.json(
-      { error: "Internal server error", message: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 /**
- * POST: Create a new reward
+ * POST: Create a new reward (Admin general creation)
  */
 export async function POST(req: NextRequest) {
   try {
     const decodedToken = await verifySession(req);
     const userId = decodedToken.uid;
+    const userRole = decodedToken.role;
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Verify Admin Role
-    const adminUserDoc = await adminDb.collection("users").doc(userId).get();
-    if (!adminUserDoc.exists || !["ADMIN","OWNER"].includes(adminUserDoc.data()?.role)) {
-      return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+    if (!userId || userRole !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden: Admin role required" }, { status: 403 });
     }
 
     const body = await req.json();
-    const { title, description, points_required, image_url, status, category, stock } = body;
+    const { title, description, points_required, image_url, status, category, stock, codes } = body;
 
     // Validation
     if (!title || typeof title !== "string" || title.trim().length === 0) {
@@ -134,32 +114,68 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Points required must be a positive number" }, { status: 400 });
     }
 
-    const rewardData = {
-      title: title.trim(),
-      description: description?.trim() || "",
-      points_required,
-      image_url: image_url?.trim() || "??",
-      status: status || "Active",
-      category: category?.trim() || "General",
-      stock: stock ?? 0,
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
+    const processedCodes = Array.isArray(codes)
+      ? codes.map((c: any) => String(c).trim()).filter(Boolean)
+      : [];
 
-    const docRef = await adminDb.collection("rewards").add(rewardData);
+    if (processedCodes.length === 0) {
+      return NextResponse.json({ error: "At least one coupon code is required" }, { status: 400 });
+    }
 
-    return NextResponse.json({ 
-        reward: { reward_id: docRef.id, ...rewardData } 
+    const finalStock = processedCodes.length;
+
+    // Insert Reward
+    const { data: reward, error: insertError } = await supabaseAdmin
+      .from("Reward")
+      .insert({
+        title: title.trim(),
+        description: description?.trim() || "",
+        points_required,
+        image_url: image_url?.trim() || "🎁",
+        status: status || "Active",
+        category: category?.trim() || "General",
+        stock: finalStock,
+        max_redemptions: finalStock,
+        remaining_redemptions: finalStock,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select("*")
+      .single();
+
+    if (insertError || !reward) {
+      console.error("Error inserting reward:", insertError);
+      return NextResponse.json({ error: insertError?.message || "Failed to create reward" }, { status: 500 });
+    }
+
+    // Insert Codes
+    const codesData = processedCodes.map(code => ({
+      reward_id: reward.reward_id,
+      code,
+      is_used: false,
+      created_at: new Date().toISOString()
+    }));
+
+    const { error: codesError } = await supabaseAdmin
+      .from("RewardCode")
+      .insert(codesData);
+
+    if (codesError) {
+      console.error("Error inserting codes:", codesError);
+      // Rollback
+      await supabaseAdmin.from("Reward").delete().eq("reward_id", reward.reward_id);
+      return NextResponse.json({ error: "Failed to securely save codes" }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      reward
     }, { status: 201 });
+
   } catch (error: any) {
     console.error("Error in POST /api/admin/rewards:", error);
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (error.message.startsWith("Unauthorized")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    return NextResponse.json(
-      { error: "Internal server error", message: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

@@ -252,6 +252,15 @@ export default function HomeClient() {
                         ⚙️ Admin Panel
                       </Button>
                     </Link>
+                  ) : (userRole === "BUSINESS" || userRole === "business") ? (
+                    <Link href="/business">
+                      <Button
+                        size="lg"
+                        className="bg-white text-primary hover:bg-white/90 shadow-xl"
+                      >
+                        💼 Business Portal
+                      </Button>
+                    </Link>
                   ) : (
                     <Link href="/dashboard/home">
                       <Button

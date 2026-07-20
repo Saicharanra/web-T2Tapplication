@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession, adminDb } from "@/lib/firebase-admin";
-
+import { verifySession } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/**
+ * GET: Fetch redeemed rewards for the logged-in user
+ */
 export async function GET(req: NextRequest) {
   try {
     const decodedToken = await verifySession(req);
@@ -14,67 +17,78 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch redemptions for this user
-    const redemptionsSnapshot = await adminDb.collection("redemptions")
-      .where("user_id", "==", userId)
-      .get();
+    // Fetch redemptions with joined reward details
+    const { data: redemptions, error } = await supabaseAdmin
+      .from("RewardRedemption")
+      .select(`
+        redemption_id,
+        reward_id,
+        code,
+        redeemed_at,
+        expires_at,
+        status,
+        Reward (
+          title,
+          description,
+          points_required,
+          image_url,
+          category,
+          company_name,
+          logo_url,
+          banner_url,
+          discount_type,
+          discount_value,
+          original_price,
+          min_purchase,
+          terms,
+          store_location,
+          website,
+          contact_number
+        )
+      `)
+      .eq("user_id", userId)
+      .order("redeemed_at", { ascending: false });
 
-    const historyData = redemptionsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    if (error) {
+      console.error("Error fetching redemptions history:", error);
+      return NextResponse.json({ error: "Failed to fetch history" }, { status: 500 });
+    }
 
-    // Sort in memory
-    historyData.sort((a: any, b: any) => {
-      const dateA = a.redeemed_at?.toDate?.() || new Date(a.redeemed_at);
-      const dateB = b.redeemed_at?.toDate?.() || new Date(b.redeemed_at);
-      return dateB.getTime() - dateA.getTime();
-    });
-
-    // Extract unique reward IDs to solve N+1 query problem
-    const uniqueRewardIds = Array.from(
-      new Set(
-        historyData
-          .map((data: any) => data.reward_id)
-          .filter(Boolean)
-      )
-    );
-
-    const rewardRefs = (uniqueRewardIds as string[]).map(id => adminDb.collection("rewards").doc(id));
-    const rewardSnapshots = rewardRefs.length > 0 ? await adminDb.getAll(...rewardRefs) : [];
-    const rewardMap = new Map<string, any>();
-    rewardSnapshots.forEach(snap => {
-      if (snap.exists) {
-        rewardMap.set(snap.id, snap.data());
-      }
-    });
-
-    const history = historyData.map((data: any) => {
-      const rewardData = rewardMap.get(data.reward_id);
-
+    const history = (redemptions || []).map((r: any) => {
+      const reward = r.Reward as any;
       return {
-        id: data.id,
-        reward_id: data.reward_id,
-        name: rewardData ? rewardData.title : "Unknown Reward",
-        description: rewardData ? rewardData.description : "No description available",
-        image_url: rewardData ? rewardData.image_url : "",
-        category: rewardData ? rewardData.category : "General",
-        points_required: rewardData ? rewardData.points_required : 0,
-        date: (data.redeemed_at?.toDate?.() || new Date(data.redeemed_at)).toISOString().split("T")[0],
-        code: data.code || `RWD-${data.id.substring(0, 6).toUpperCase()}`,
+        id: String(r.redemption_id),
+        reward_id: String(r.reward_id),
+        name: reward?.title || "Unknown Reward",
+        description: reward?.description || "",
+        image_url: reward?.image_url || "",
+        category: reward?.category || "General",
+        points_required: reward?.points_required || 0,
+        date: r.redeemed_at ? r.redeemed_at.split("T")[0] : "",
+        redeemed_at: r.redeemed_at,
+        expires_at: r.expires_at,
+        code: r.code,
+        status: r.status,
+        company_name: reward?.company_name || "T2T Partner",
+        logo_url: reward?.logo_url || "",
+        banner_url: reward?.banner_url || "",
+        discount_type: reward?.discount_type || "Percentage",
+        discount_value: reward?.discount_value || 0,
+        original_price: reward?.original_price || null,
+        min_purchase: reward?.min_purchase || 0,
+        terms: reward?.terms || "",
+        store_location: reward?.store_location || "",
+        website: reward?.website || "",
+        contact_number: reward?.contact_number || ""
       };
     });
 
     return NextResponse.json({ history });
   } catch (error: any) {
     console.error("Error in GET /api/rewards/history:", error);
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (error.message.startsWith("Unauthorized")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

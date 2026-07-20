@@ -128,7 +128,7 @@ export default function RewardPage() {
   /* ──────────── Computed values ──────────── */
 
   const unclaimedRewards = rewards.filter(
-    (reward) => !history.some((h) => h.reward_id === reward.reward_id)
+    (reward) => (reward as any).allow_multiple || !history.some((h) => h.reward_id === reward.reward_id)
   );
 
   const getNextRewardCredits = (credits: number, rewardList: Reward[]) => {
@@ -168,8 +168,7 @@ export default function RewardPage() {
       // Update local points
       setPoints(data.newPoints);
 
-      // Extract real redemption ID
-      const code = data.code || `RWD-${String(data.redemption_id || Math.floor(Math.random() * 10000)).padStart(6, '0')}`;
+      const code = data.code;
 
       setRedeemedReward(reward);
       setRedemptionCode(code);
@@ -186,15 +185,13 @@ export default function RewardPage() {
 
       setTimeout(() => {
         setIsCelebrating(false);
-        // Refresh local history list from API directly to ensure DB sync
         fetchHistory();
       }, 2800);
 
-      // Refresh rewards list to update stock
       await fetchRewards();
     } catch (err) {
       toast({
-        title: "Reward already Claimed",
+        title: "Redemption Failed",
         description: err instanceof Error ? err.message : "Something went wrong",
         variant: "destructive",
       });
@@ -277,14 +274,8 @@ export default function RewardPage() {
           transition={{ duration: 0.5 }}
           className="shrink-0 flex items-center justify-center z-10"
         >
-          <div className="relative w-48 h-48 md:w-56 md:h-56">
-            <Image
-              src="/rewards/premium_box.png"
-              alt="Premium Eco Reward Box"
-              fill
-              className="object-cover rounded-2xl shadow-xl shadow-black/20 border-2 border-white/20"
-              priority
-            />
+          <div className="relative w-48 h-48 md:w-56 md:h-56 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-xl overflow-hidden flex items-center justify-center">
+            <Gift className="w-28 h-28 text-white drop-shadow-lg" />
           </div>
         </motion.div>
       </motion.div>
@@ -319,7 +310,9 @@ export default function RewardPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {unclaimedRewards.map((reward, i) => {
-            const isImageUrl = reward.image_url.startsWith("http") || reward.image_url.startsWith("/");
+            const isBannerUrl = (reward as any).banner_url?.startsWith("http") || (reward as any).banner_url?.startsWith("/") || reward.image_url.startsWith("http") || reward.image_url.startsWith("/");
+            const bannerSource = (reward as any).banner_url || reward.image_url;
+            const isLogoUrl = (reward as any).logo_url?.startsWith("http") || (reward as any).logo_url?.startsWith("/");
             const canAfford = userCredits >= reward.points_required;
 
             return (
@@ -337,51 +330,61 @@ export default function RewardPage() {
                   </span>
 
                   {/* Stock badge */}
-                  {reward.stock > 0 && reward.stock < 10 && reward.stock !== 999 && (
+                  {(reward as any).remaining_redemptions !== undefined && (reward as any).remaining_redemptions > 0 && (reward as any).remaining_redemptions < 10 && (
                     <span className="bg-amber-500 text-white px-3 py-1 absolute top-4 right-4 text-xs font-bold rounded-full shadow-md z-10">
-                      Only {reward.stock} left!
+                      Only {(reward as any).remaining_redemptions} left!
                     </span>
                   )}
 
-                  {/* Reward Image / Emoji */}
-                  <div className="relative w-full h-48 bg-gradient-to-tr from-gray-50 to-gray-100 flex items-center justify-center">
-                    {isImageUrl ? (
-                      <Image
-                        src={reward.image_url}
+                  {/* Reward Banner Image */}
+                  <div className="relative w-full h-48 bg-gradient-to-tr from-gray-50 to-gray-100 flex items-center justify-center overflow-hidden">
+                    {isBannerUrl ? (
+                      <img
+                        src={bannerSource}
                         alt={reward.title}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
                       <span className="text-7xl">{reward.image_url}</span>
+                    )}
+                    {/* Floating company logo */}
+                    {isLogoUrl && (
+                      <div className="absolute bottom-3 right-3 w-10 h-10 rounded-xl bg-white border border-gray-100 shadow-lg overflow-hidden flex items-center justify-center">
+                        <img src={(reward as any).logo_url} alt="Logo" className="w-full h-full object-cover" />
+                      </div>
                     )}
                   </div>
 
                   {/* Reward Info */}
                   <CardHeader className="pb-2 pt-5 px-6">
-                    <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-green-700 transition-colors">
-                      {reward.title}
-                    </CardTitle>
+                    <div className="min-w-0">
+                      {(reward as any).company_name && (
+                        <p className="text-xs text-emerald-600 font-bold uppercase tracking-widest">{(reward as any).company_name}</p>
+                      )}
+                      <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-green-700 transition-colors mt-0.5">
+                        {reward.title}
+                      </CardTitle>
+                    </div>
                   </CardHeader>
                   <CardContent className="px-6 pb-6 pt-1 flex flex-col flex-1 justify-between">
                     <p className="text-sm text-muted-foreground font-medium mb-4 leading-relaxed line-clamp-2">
                       {reward.description}
                     </p>
                     <div className="flex items-center justify-between gap-3 mt-auto">
-                      <span className="text-green-700 font-extrabold text-lg flex items-center gap-1 bg-green-50 px-3 py-1 rounded-lg">
-                        <Star className="h-5 w-5 text-yellow-500 mr-0.5 fill-yellow-500" />
+                      <span className="text-green-700 font-extrabold text-sm flex items-center gap-1 bg-green-50 px-2.5 py-1.5 rounded-lg border border-green-100/50 shadow-sm shrink-0">
+                        <Star className="h-4.5 w-4.5 text-yellow-500 mr-0.5 fill-yellow-500" />
                         {reward.points_required} Credits
                       </span>
                       <Button
                         onClick={() => handleRedeem(reward)}
                         disabled={isRedeeming || !canAfford}
-                        className={`font-bold px-6 py-2 rounded-xl shadow-md hover:shadow-lg transition-all
+                        className={`font-bold px-5 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all
                           ${canAfford
-                            ? "bg-gradient-eco text-white"
-                            : "bg-gray-200 text-gray-500 cursor-not-allowed hover:shadow-none"
+                            ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white"
+                            : "bg-gray-100 text-gray-400 cursor-not-allowed hover:shadow-none"
                           }`}
                       >
-                        {isRedeeming ? "..." : canAfford ? "Redeem" : "Not enough"}
+                        {isRedeeming ? "..." : canAfford ? "Redeem" : "Redeem to Unlock"}
                       </Button>
                     </div>
                   </CardContent>

@@ -24,6 +24,7 @@ const navigationBase = [
   { name: "Submissions", href: "/owner/submissions", icon: Images, badge: null, section: "MAIN", description: "Review waste reports" },
   { name: "Manage Bins", href: "/owner/bins", icon: Map, section: "MAIN", description: "Manage & Add waste bins" },
   { name: "Rewards", href: "/owner/rewards", icon: Gift, section: "MAIN", description: "Manage reward catalog" },
+  { name: "Businesses", href: "/owner/businesses", icon: Users, section: "MAIN", description: "Manage & approve partners" },
   { name: "Users", href: "/owner/users", icon: Users, section: "MAIN", description: "User management" },
   { name: "Reports", href: "/owner/reports", icon: TrendingUp, section: "ANALYTICS", description: "Progress analytics" },
   { name: "User Engagement", href: "/owner/engagement", icon: Clock, section: "ANALYTICS", description: "Time-spent tracking" },

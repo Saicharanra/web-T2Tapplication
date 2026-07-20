@@ -22,13 +22,13 @@ export async function PATCH(
 
     // Check if user is admin
     const adminUserDoc = await adminDb.collection("users").doc(adminId).get();
-    if (!adminUserDoc.exists || !["ADMIN","OWNER"].includes(adminUserDoc.data()?.role)) {
+    if (!adminUserDoc.exists || !["ADMIN", "BUSINESS", "business"].includes(adminUserDoc.data()?.role)) {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
     const { role } = await req.json();
 
-    if (!role || !["ADMIN", "USER"].includes(role)) {
+    if (!role || !["ADMIN", "USER", "BUSINESS"].includes(role)) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
 

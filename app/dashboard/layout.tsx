@@ -188,8 +188,14 @@ export default function DashboardLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/sign-in");
+    if (!authLoading) {
+      if (!user) {
+        router.push("/sign-in");
+      } else if (user.role === "BUSINESS" || user.role === "business") {
+        router.push("/business");
+      } else if (user.role === "ADMIN") {
+        router.push("/owner");
+      }
     }
   }, [user, authLoading, router]);
 
@@ -268,7 +274,7 @@ export default function DashboardLayout({
     );
   }
 
-  if (!user) {
+  if (!user || user.role === "BUSINESS" || user.role === "business" || user.role === "ADMIN") {
     return null;
   }
 

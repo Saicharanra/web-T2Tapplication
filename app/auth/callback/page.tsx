@@ -13,9 +13,16 @@ function AuthCallbackContent() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        // If a custom redirect path is provided (e.g. for password resets), use it
-        const nextPath = searchParams.get("next") || "/dashboard/home";
-        router.push(nextPath);
+        // Redirect based on role
+        if (user.role === "BUSINESS" || user.role === "business") {
+          router.push("/business");
+        } else if (user.role === "ADMIN") {
+          router.push("/owner");
+        } else {
+          // If a custom redirect path is provided (e.g. for password resets), use it
+          const nextPath = searchParams.get("next") || "/dashboard/home";
+          router.push(nextPath);
+        }
       } else {
         router.push("/sign-in");
       }
