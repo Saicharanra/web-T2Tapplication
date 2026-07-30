@@ -301,11 +301,11 @@ export default function ProfilePage() {
       const { supabase } = await import("@/lib/supabase-client");
       const { notify } = await import("@/lib/notifications/notify");
 
-      // Update Supabase User table
-      await supabase.from("User").update({
+      // Update Supabase users table
+      await supabase.from("users").update({
         name: profileName.trim(),
         location: profileLocation.trim() || "Not specified",
-        updatedAt: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }).eq("id", user.uid);
 
       // 3. Dispatch Coordinated Profile Updated alert

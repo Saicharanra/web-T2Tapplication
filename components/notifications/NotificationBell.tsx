@@ -19,31 +19,55 @@ export function NotificationBell() {
 
     // Initial load
     const loadNotifications = async () => {
-      const { data, error } = await supabase
-        .from("Notification")
-        .select("*")
-        .eq("userId", user.uid)
-        .order("createdAt", { ascending: false });
+      let loaded = false;
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("user_id", user.uid)
+          .order("created_at", { ascending: false });
 
-      if (!error && data) {
-        setNotifications(
-          data.map((row) => ({
-            id: row.id,
-            userId: row.userId,
-            email: row.email,
-            type: row.type,
-            title: row.title,
-            message: row.message,
-            read: row.read,
-            createdAt: row.createdAt,
-          }))
-        );
+        if (!error && data && data.length > 0) {
+          setNotifications(
+            data.map((row) => ({
+              id: row.id,
+              userId: row.user_id,
+              email: row.email,
+              type: row.type,
+              title: row.title,
+              message: row.message,
+              read: row.read,
+              createdAt: row.created_at,
+            }))
+          );
+          loaded = true;
+        } else if (error) {
+          console.warn("⚠️ Client-side notification fetch returned error (checking API fallback):", error);
+        }
+      } catch (err) {
+        console.warn("⚠️ Client notification query exception:", err);
+      }
+
+      if (!loaded) {
+        try {
+          const res = await fetch("/api/notifications", {
+            headers: { Authorization: `Bearer ${user.uid}` },
+          });
+          if (res.ok) {
+            const apiData = await res.json();
+            if (apiData.notifications) {
+              setNotifications(apiData.notifications);
+            }
+          }
+        } catch (apiErr) {
+          console.error("❌ Notifications API fallback failed:", apiErr);
+        }
       }
     };
 
     loadNotifications();
 
-    // Realtime subscription on Notification table filtered by userId
+    // Realtime subscription on notifications table filtered by user_id
     const channel = supabase
       .channel(`notifications:${user.uid}`)
       .on(
@@ -51,8 +75,8 @@ export function NotificationBell() {
         {
           event: "*",
           schema: "public",
-          table: "Notification",
-          filter: `userId=eq.${user.uid}`,
+          table: "notifications",
+          filter: `user_id=eq.${user.uid}`,
         },
         () => {
           // Re-fetch on any change (INSERT / UPDATE / DELETE)
@@ -76,7 +100,7 @@ export function NotificationBell() {
   const handleMarkAsRead = async (id: string) => {
     try {
       await supabase
-        .from("Notification")
+        .from("notifications")
         .update({ read: true })
         .eq("id", id);
 
@@ -95,9 +119,9 @@ export function NotificationBell() {
 
     try {
       await supabase
-        .from("Notification")
+        .from("notifications")
         .update({ read: true })
-        .eq("userId", user?.uid)
+        .eq("user_id", user?.uid)
         .eq("read", false);
 
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));

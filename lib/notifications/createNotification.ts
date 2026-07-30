@@ -56,15 +56,15 @@ export async function createNotification(
     }
 
     const { data, error } = await supabaseAdmin
-      .from("Notification")
+      .from("notifications")
       .insert({
-        userId,
+        user_id: userId,
         email,
         type,
         title,
         message,
         read: false,
-        createdAt: new Date().toISOString(),
+        created_at: new Date().toISOString(),
       })
       .select("id")
       .single();

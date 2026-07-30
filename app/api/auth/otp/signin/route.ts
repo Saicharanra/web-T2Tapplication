@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Check user exists in Supabase
     const { data: user, error: userError } = await supabaseAdmin
-      .from("User")
+      .from("users")
       .select("id, name")
       .eq("email", normalizedEmail)
       .single();
@@ -39,15 +39,15 @@ export async function POST(req: NextRequest) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // 3. Upsert OTP into Supabase OTP table
+    // 3. Upsert OTP into Supabase otp_codes table
     const { error: upsertError } = await supabaseAdmin
-      .from("OTP")
+      .from("otp_codes")
       .upsert(
         {
           email: normalizedEmail,
-          otp,
-          createdAt: new Date().toISOString(),
-          expiresAt: expiresAt.toISOString(),
+          code: otp,
+          created_at: new Date().toISOString(),
+          expires_at: expiresAt.toISOString(),
         },
         { onConflict: "email" }
       );

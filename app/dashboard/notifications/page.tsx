@@ -25,14 +25,49 @@ export default function UserNotificationsPage() {
     setLoading(true);
 
     const loadNotifications = async () => {
-      const { data, error } = await supabase
-        .from("Notification")
-        .select("*")
-        .eq("userId", user.uid)
-        .order("createdAt", { ascending: false });
+      let loaded = false;
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("user_id", user.uid)
+          .order("created_at", { ascending: false });
 
-      if (!error && data) {
-        setNotifications(data as NotificationItemData[]);
+        if (!error && data && data.length > 0) {
+          setNotifications(
+            data.map((row) => ({
+              id: row.id,
+              userId: row.user_id,
+              email: row.email,
+              type: row.type,
+              title: row.title,
+              message: row.message,
+              read: row.read,
+              createdAt: row.created_at,
+            }))
+          );
+          loaded = true;
+        } else if (error) {
+          console.warn("⚠️ Client-side notification page query returned error (checking API fallback):", error);
+        }
+      } catch (err) {
+        console.warn("⚠️ Client notification query exception:", err);
+      }
+
+      if (!loaded) {
+        try {
+          const res = await fetch("/api/notifications", {
+            headers: { Authorization: `Bearer ${user.uid}` },
+          });
+          if (res.ok) {
+            const apiData = await res.json();
+            if (apiData.notifications) {
+              setNotifications(apiData.notifications);
+            }
+          }
+        } catch (apiErr) {
+          console.error("❌ Notifications page API fallback failed:", apiErr);
+        }
       }
       setLoading(false);
     };
@@ -45,8 +80,8 @@ export default function UserNotificationsPage() {
       .on("postgres_changes", {
         event: "*",
         schema: "public",
-        table: "Notification",
-        filter: `userId=eq.${user.uid}`,
+        table: "notifications",
+        filter: `user_id=eq.${user.uid}`,
       }, () => loadNotifications())
       .subscribe();
 
@@ -60,7 +95,7 @@ export default function UserNotificationsPage() {
   // 2. Mark individual notification as read
   const handleMarkAsRead = async (id: string) => {
     try {
-      await supabase.from("Notification").update({ read: true }).eq("id", id);
+      await supabase.from("notifications").update({ read: true }).eq("id", id);
       setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
     } catch (err) {
       console.error("Failed to read notification:", err);
@@ -72,7 +107,7 @@ export default function UserNotificationsPage() {
     const unread = notifications.filter((n) => !n.read);
     if (unread.length === 0) return;
     try {
-      await supabase.from("Notification").update({ read: true }).eq("userId", user?.uid).eq("read", false);
+      await supabase.from("notifications").update({ read: true }).eq("user_id", user?.uid).eq("read", false);
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     } catch (err) {
       console.error("Failed to read all notifications:", err);
@@ -85,7 +120,7 @@ export default function UserNotificationsPage() {
     const confirmClear = window.confirm("Are you sure you want to clear your entire notification history?");
     if (!confirmClear) return;
     try {
-      await supabase.from("Notification").delete().eq("userId", user?.uid);
+      await supabase.from("notifications").delete().eq("user_id", user?.uid);
       setNotifications([]);
     } catch (err) {
       console.error("Failed to delete notifications:", err);

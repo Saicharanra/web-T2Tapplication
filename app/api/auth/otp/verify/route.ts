@@ -18,8 +18,8 @@ export async function POST(req: NextRequest) {
 
     // 1. Fetch OTP record from Supabase
     const { data: otpRecord, error: fetchError } = await supabaseAdmin
-      .from("OTP")
-      .select("otp, expiresAt")
+      .from("otp_codes")
+      .select("code, expires_at")
       .eq("email", normalizedEmail)
       .single();
 
@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Validate expiration
-    const expiryDate = new Date(otpRecord.expiresAt);
+    const expiryDate = new Date(otpRecord.expires_at);
     if (new Date() > expiryDate) {
       // Clean up expired OTP
-      await supabaseAdmin.from("OTP").delete().eq("email", normalizedEmail);
+      await supabaseAdmin.from("otp_codes").delete().eq("email", normalizedEmail);
       return NextResponse.json(
         { error: "Verification code has expired. Please request a new one." },
         { status: 400 }
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Match code
-    if (otpRecord.otp !== enteredOtp) {
+    if (otpRecord.code !== enteredOtp) {
       return NextResponse.json(
         { error: "The verification code you entered is incorrect." },
         { status: 400 }
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Verification successful — clean up OTP from Supabase
-    await supabaseAdmin.from("OTP").delete().eq("email", normalizedEmail);
+    await supabaseAdmin.from("otp_codes").delete().eq("email", normalizedEmail);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {

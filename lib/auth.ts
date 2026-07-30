@@ -20,7 +20,7 @@ export async function verifySession(request: NextRequest) {
   }
 
   const { data: user, error } = await supabaseAdmin
-    .from("User")
+    .from("users")
     .select("id, email, name, role, level, points, status")
     .eq("id", userId)
     .single();

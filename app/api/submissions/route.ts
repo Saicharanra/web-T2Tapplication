@@ -181,6 +181,20 @@ export async function POST(req: NextRequest) {
     console.log(`📝 Storing submission ${id} for user ${userId}`);
     await adminDb.collection("submissions").doc(id).set(submissionData);
 
+    // 🤖 Auto-verify with the ML model (fire-and-forget — the user isn't blocked).
+    // The ML service downloads the image, identifies the waste object, checks for
+    // duplicates, and writes VERIFIED/REJECTED + per-category points straight into
+    // Supabase. Wrapped so it can never break submission creation.
+    try {
+      const mlUrl = process.env.ML_SERVICE_URL;
+      if (mlUrl) {
+        fetch(`${mlUrl.replace(/\/$/, "")}/verify/${id}`, { method: "POST" })
+          .catch((e) => console.error("⚠️ ML auto-verify call failed:", e));
+      }
+    } catch (mlErr) {
+      console.error("⚠️ ML auto-verify dispatch error:", mlErr);
+    }
+
     // Coordinated Notifications (In-App + Transactional Resend Emails)
     try {
       if (userData && userData.email) {

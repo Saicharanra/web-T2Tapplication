@@ -17,9 +17,9 @@ export async function POST(req: NextRequest) {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 1. Check if email is already registered in Supabase User table
+    // 1. Check if email is already registered in Supabase users table
     const { data: existingUser } = await supabaseAdmin
-      .from("User")
+      .from("users")
       .select("id")
       .eq("email", normalizedEmail)
       .single();
@@ -35,15 +35,15 @@ export async function POST(req: NextRequest) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes validity
 
-    // 3. Upsert OTP into Supabase OTP table (one record per email)
+    // 3. Upsert OTP into Supabase otp_codes table
     const { error: upsertError } = await supabaseAdmin
-      .from("OTP")
+      .from("otp_codes")
       .upsert(
         {
           email: normalizedEmail,
-          otp,
-          createdAt: new Date().toISOString(),
-          expiresAt: expiresAt.toISOString(),
+          code: otp,
+          created_at: new Date().toISOString(),
+          expires_at: expiresAt.toISOString(),
         },
         { onConflict: "email" }
       );

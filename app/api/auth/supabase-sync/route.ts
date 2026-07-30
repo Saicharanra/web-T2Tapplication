@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Check if user already exists by ID
     const { data: userById, error: fetchError } = await supabaseAdmin
-      .from("User")
+      .from("users")
       .select("*")
       .eq("id", id)
       .maybeSingle();
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Check if user exists by email (could be created via legacy migration or pre-existing records)
     const { data: userByEmail } = await supabaseAdmin
-      .from("User")
+      .from("users")
       .select("*")
       .eq("email", normalizedEmail)
       .maybeSingle();
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     if (userByEmail) {
       // Update the user's ID to their Supabase Auth UUID so that auth states match.
       const { error: updateIdError } = await supabaseAdmin
-        .from("User")
+        .from("users")
         .update({ id })
         .eq("email", normalizedEmail);
 
@@ -70,22 +70,21 @@ export async function POST(req: NextRequest) {
       }, { status: 200 });
     }
 
-    // 3. New user - create them in the Supabase public User table
+    // 3. New user - create them in the Supabase public users table
     const { data: newUser, error: insertError } = await supabaseAdmin
-      .from("User")
+      .from("users")
       .insert({
         id,
-        name: name.trim(),
+        name: (name || "").trim() || normalizedEmail.split("@")[0],
         email: normalizedEmail,
-        password: null, // Supabase Auth manages secure passwords internally in auth.users
         role: "USER",
         level: "BRONZE",
         points: 0,
-        status: "ACTIVE",
+        status: "Active",
         location: "Not specified",
-        imageUrl,
-        joinedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        avatar_url: imageUrl || null,
+        joined_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .select("*")
       .single();
@@ -103,7 +102,7 @@ export async function POST(req: NextRequest) {
         type: "user_created",
         title: "Welcome to Trash2Treasure! 🌍",
         message: "Welcome to Trash2Treasure! Your account has been successfully created. Thank you for joining our eco-friendly movement!",
-        emailProps: { name: name.trim() },
+        emailProps: { name: (name || "").trim() || "Member" },
       });
     } catch (notifErr) {
       console.error("⚠️ Failed to dispatch welcome notifications:", notifErr);

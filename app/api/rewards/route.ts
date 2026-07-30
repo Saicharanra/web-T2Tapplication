@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Fetch User details
     const { data: user, error: userError } = await supabaseAdmin
-      .from("User")
+      .from("users")
       .select("points, email, name")
       .eq("id", userId)
       .single();
@@ -171,8 +171,8 @@ export async function POST(req: NextRequest) {
     // 6. Deduct Points from User
     const newPoints = user.points - reward.points_required;
     const { error: userUpdateError } = await supabaseAdmin
-      .from("User")
-      .update({ points: newPoints, updatedAt: new Date().toISOString() })
+      .from("users")
+      .update({ points: newPoints, updated_at: new Date().toISOString() })
       .eq("id", userId);
 
     if (userUpdateError) {
@@ -208,29 +208,29 @@ export async function POST(req: NextRequest) {
       console.error("Redemption insert error:", redemptionError);
     }
 
-    // 9. Add PointsHistory Record
+    // 9. Add points_history Record
     await supabaseAdmin
-      .from("PointsHistory")
+      .from("points_history")
       .insert({
-        userId,
-        submissionId: `redemption_${redemption?.redemption_id || Math.floor(Math.random() * 100000)}`,
+        user_id: userId,
         points: -reward.points_required,
+        transaction_type: "REDEEMED",
         description: `Redeemed for ${reward.title}`,
-        createdAt: new Date().toISOString()
+        created_at: new Date().toISOString()
       });
 
     // 10. In-App Notification (optional helper)
     try {
       await supabaseAdmin
-        .from("Notification")
+        .from("notifications")
         .insert({
-          userId,
+          user_id: userId,
           email: user.email,
           type: "reward_claimed",
           title: "Reward Claimed 🪙",
           message: `Your reward claim for "${reward.title}" has been completed successfully! Code: ${redemptionCode}`,
           read: false,
-          createdAt: new Date().toISOString()
+          created_at: new Date().toISOString()
         });
     } catch (notifErr) {
       console.warn("Notification insert failed:", notifErr);

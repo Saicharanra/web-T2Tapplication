@@ -30,21 +30,40 @@ export async function GET(req: NextRequest) {
       console.warn("⚠️ Could not count submissions:", e);
     }
 
-    // Calculate streak (count submissions in last 7 days)
+    // Calculate real daily usage streak (consecutive unique calendar days active)
     let streak = 0;
     try {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const recentSubmissionsSnapshot = await adminDb.collection("submissions")
+      const submissionsSnapshot = await adminDb.collection("submissions")
         .where("userId", "==", userId)
-        .where("createdAt", ">=", sevenDaysAgo)
-        .count()
         .get();
-      streak = recentSubmissionsSnapshot.data().count;
+      
+      const dates = new Set<string>();
+      submissionsSnapshot.docs.forEach((doc: any) => {
+        const subData = doc.data();
+        const dateObj = subData.createdAt?.toDate ? subData.createdAt.toDate() : new Date(subData.createdAt);
+        if (dateObj && !isNaN(dateObj.getTime())) {
+          dates.add(dateObj.toISOString().split('T')[0]); // YYYY-MM-DD
+        }
+      });
+
+      // Calculate consecutive days starting from today or yesterday
+      const today = new Date();
+      let checkDate = new Date(today);
+      let dateStr = checkDate.toISOString().split('T')[0];
+
+      if (!dates.has(dateStr)) {
+        // If not active today, check if active yesterday to keep streak alive
+        checkDate.setDate(checkDate.getDate() - 1);
+        dateStr = checkDate.toISOString().split('T')[0];
+      }
+
+      while (dates.has(dateStr)) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+        dateStr = checkDate.toISOString().split('T')[0];
+      }
     } catch (e) {
-      console.warn("⚠️ Could not calculate streak (index might be missing):", e);
-      // Fallback: just use 0 or fetch all and filter in memory if small
+      console.warn("⚠️ Could not calculate daily streak:", e);
     }
 
     return NextResponse.json({

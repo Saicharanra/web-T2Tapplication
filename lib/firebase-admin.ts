@@ -4,22 +4,100 @@ import { supabaseAdmin } from "./supabase-server";
 function getTableName(collection: string): string {
   switch (collection) {
     case "users":
-      return "User";
+    case "User":
+      return "users";
     case "submissions":
-      return "Submission";
+    case "Submission":
+    case "waste_submissions":
+      return "waste_submissions";
     case "pointsHistory":
-      return "PointsHistory";
+    case "PointsHistory":
+    case "points_history":
+      return "points_history";
     case "rewards":
-      return "Reward";
+    case "Reward":
+    case "coupons":
+      return "coupons";
     case "redemptions":
-      return "RewardRedemption";
+    case "RewardRedemption":
+    case "coupon_redemptions":
+      return "coupon_redemptions";
     case "notifications":
-      return "Notification";
+    case "Notification":
+      return "notifications";
     case "bins":
-      return "Bin";
+    case "Bin":
+      return "bins";
+    case "otp":
+    case "OTP":
+    case "otp_codes":
+      return "otp_codes";
     default:
       return collection;
   }
+}
+
+// Field mapping dictionary from legacy camelCase fields to Postgres snake_case columns
+const FIELD_TO_POSTGRES: Record<string, string> = {
+  userId: "user_id",
+  binId: "bin_id",
+  wasteType: "category",
+  imageUrl: "image_url",
+  imagePath: "image_path",
+  imageSize: "image_size",
+  imageMimeType: "image_mime_type",
+  pointsAwarded: "points_awarded",
+  aiConfidence: "ai_confidence",
+  assignedAdminId: "assigned_admin_id",
+  rejectionReason: "rejection_reason",
+  verifiedAt: "verified_at",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
+  joinedAt: "joined_at",
+  avatarUrl: "avatar_url",
+  locationType: "location_type",
+  fillPercentage: "fill_percentage",
+  photoUrl: "photo_url",
+  addedBy: "added_by",
+  lastCleared: "last_cleared",
+  submissionId: "submission_id",
+  transactionType: "transaction_type",
+  expiresAt: "expires_at",
+  redeemedAt: "redeemed_at",
+  wasteSubmitted: "waste_submitted",
+};
+
+const POSTGRES_TO_FIELD: Record<string, string> = {
+  user_id: "userId",
+  bin_id: "binId",
+  category: "wasteType",
+  image_url: "imageUrl",
+  image_path: "imagePath",
+  image_size: "imageSize",
+  image_mime_type: "imageMimeType",
+  points_awarded: "pointsAwarded",
+  ai_confidence: "aiConfidence",
+  assigned_admin_id: "assignedAdminId",
+  rejection_reason: "rejectionReason",
+  verified_at: "verifiedAt",
+  created_at: "createdAt",
+  updated_at: "updatedAt",
+  joined_at: "joinedAt",
+  avatar_url: "avatarUrl",
+  location_type: "locationType",
+  fill_percentage: "fillPercentage",
+  photo_url: "photoUrl",
+  added_by: "addedBy",
+  last_cleared: "lastCleared",
+  submission_id: "submissionId",
+  transaction_type: "transactionType",
+  expires_at: "expiresAt",
+  redeemed_at: "redeemedAt",
+  waste_submitted: "wasteSubmitted",
+};
+
+function toPostgresColumn(field: string): string {
+  return FIELD_TO_POSTGRES[field] || field;
 }
 
 // Convert Firestore fields to Postgres columns
@@ -28,13 +106,13 @@ function toPostgres(table: string, data: any): any {
   const result: any = {};
 
   const schemas: Record<string, string[]> = {
-    User: ["id", "name", "email", "password", "role", "level", "points", "status", "location", "imageUrl", "joinedAt", "updatedAt"],
-    Submission: ["id", "userId", "wasteType", "imageUrl", "imagePath", "imageSize", "imageMimeType", "pointsAwarded", "status", "location", "createdAt", "verifiedAt", "assignedAdminId", "rejectionReason"],
-    PointsHistory: ["id", "userId", "submissionId", "points", "createdAt"],
-    Notification: ["id", "userId", "email", "type", "title", "message", "read", "createdAt"],
-    Bin: ["id", "name", "address", "latitude", "longitude", "locationType", "photoUrl", "addedBy", "createdAt"],
-    Reward: ["reward_id", "title", "description", "points_required", "image_url", "status", "category", "stock", "created_at", "updated_at"],
-    RewardRedemption: ["redemption_id", "user_id", "reward_id", "code_id", "code", "redeemed_at", "expires_at", "status", "used_at", "updated_at"],
+    users: ["id", "name", "email", "phone", "role", "level", "points", "status", "location", "city", "state", "avatar_url", "waste_submitted", "joined_at", "created_at", "updated_at"],
+    waste_submissions: ["id", "user_id", "bin_id", "category", "weight", "location", "image_url", "image_path", "image_size", "image_mime_type", "points_awarded", "status", "ai_confidence", "assigned_admin_id", "rejection_reason", "notes", "verified_at", "created_at", "updated_at"],
+    points_history: ["id", "user_id", "submission_id", "points", "transaction_type", "description", "created_at"],
+    notifications: ["id", "user_id", "email", "type", "title", "message", "read", "created_at", "updated_at"],
+    bins: ["id", "name", "location", "address", "latitude", "longitude", "location_type", "capacity", "fill_percentage", "status", "photo_url", "added_by", "last_cleared", "created_at", "updated_at"],
+    coupons: ["id", "business_id", "title", "description", "coupon_code", "discount_type", "discount_value", "reward_points_required", "maximum_redemptions", "current_redemptions", "stock", "banner_url", "image_url", "start_date", "expiry_date", "status", "created_at", "updated_at"],
+    coupon_redemptions: ["id", "coupon_id", "customer_id", "business_id", "voucher_code", "redeemed_at", "verification_status", "verified_by", "visit_confirmed", "points_used", "created_at", "updated_at"],
   };
 
   const allowedColumns = schemas[table] || [];
@@ -47,8 +125,10 @@ function toPostgres(table: string, data: any): any {
       val = (value as any).toDate().toISOString();
     }
 
-    if (allowedColumns.length === 0 || allowedColumns.includes(key)) {
-      result[key] = val;
+    const pgCol = toPostgresColumn(key);
+
+    if (allowedColumns.length === 0 || allowedColumns.includes(pgCol)) {
+      result[pgCol] = val;
     }
   }
   return result;
@@ -62,13 +142,20 @@ function fromPostgres(table: string, data: any): any {
     let val = value;
     // Map timestamp strings to mock Firestore timestamps
     if (
-      (key.toLowerCase().endsWith("at") || key.toLowerCase().endsWith("date") || key === "created_at" || key === "updated_at") &&
+      (key.toLowerCase().endsWith("at") || key.toLowerCase().endsWith("date") || key === "created_at" || key === "updated_at" || key === "joined_at" || key === "verified_at") &&
       typeof value === "string"
     ) {
       val = mockTimestamp(value);
     }
 
+    // Always keep Postgres key
     result[key] = val;
+
+    // Set aliased camelCase key for Firestore compatibility
+    const camelKey = POSTGRES_TO_FIELD[key];
+    if (camelKey && camelKey !== key) {
+      result[camelKey] = val;
+    }
   }
   return result;
 }
@@ -236,8 +323,7 @@ class Query {
 
     for (const w of this.wheres) {
       // Map where filters to Supabase query builder
-      const col = toPostgres(table, { [w.field]: null });
-      const dbCol = Object.keys(col)[0] || w.field;
+      const dbCol = toPostgresColumn(w.field);
 
       let val = w.value;
       if (val instanceof Date || (val && typeof val === "object" && typeof (val as any).toISOString === "function")) {
@@ -260,8 +346,7 @@ class Query {
     }
 
     if (this.orderField) {
-      const col = toPostgres(table, { [this.orderField]: null });
-      const dbCol = Object.keys(col)[0] || this.orderField;
+      const dbCol = toPostgresColumn(this.orderField);
       builder = builder.order(dbCol, { ascending: this.orderDirection === "asc" });
     }
 
@@ -374,7 +459,7 @@ export const adminDb = {
 export const adminAuth = {
   async getUser(uid: string) {
     const { data, error } = await supabaseAdmin
-      .from("User")
+      .from("users")
       .select("*")
       .eq("id", uid)
       .single();
@@ -387,12 +472,12 @@ export const adminAuth = {
       uid: data.id,
       displayName: data.name,
       email: data.email,
-      photoURL: data.imageUrl,
+      photoURL: data.avatar_url || data.imageUrl,
     };
   },
   async getUserByEmail(email: string) {
     const { data, error } = await supabaseAdmin
-      .from("User")
+      .from("users")
       .select("*")
       .eq("email", email.toLowerCase().trim())
       .single();
@@ -405,11 +490,11 @@ export const adminAuth = {
       uid: data.id,
       displayName: data.name,
       email: data.email,
-      photoURL: data.imageUrl,
+      photoURL: data.avatar_url || data.imageUrl,
     };
   },
   async deleteUser(uid: string) {
-    const { error } = await supabaseAdmin.from("User").delete().eq("id", uid);
+    const { error } = await supabaseAdmin.from("users").delete().eq("id", uid);
     if (error) {
       throw new Error(error.message);
     }

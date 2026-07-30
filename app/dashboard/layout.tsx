@@ -199,43 +199,6 @@ export default function DashboardLayout({
     }
   }, [user, authLoading, router]);
 
-  useEffect(() => {
-    if (user) {
-      const handleFirstLoginNotification = async () => {
-        try {
-          const { supabase } = await import("@/lib/supabase-client");
-          const { notify } = await import("@/lib/notifications/notify");
-
-          const { data: userData } = await supabase
-            .from("User")
-            .select("firstLoginPending, hasLoggedInBefore")
-            .eq("id", user.uid)
-            .single();
-
-          if (userData && userData.firstLoginPending !== false && !userData.hasLoggedInBefore) {
-            await notify({
-              userId: user.uid,
-              email: user.email || "",
-              type: "first_login",
-              title: "First Login Registered 🔑",
-              message: "Welcome back for your first session! Let's start scanning and saving the planet.",
-            });
-
-            await supabase.from("User").update({
-              firstLoginPending: false,
-              hasLoggedInBefore: true,
-              updatedAt: new Date().toISOString()
-            }).eq("id", user.uid);
-          }
-        } catch (err) {
-          console.error("⚠️ Failed to check or trigger First Login notification:", err);
-        }
-      };
-
-      handleFirstLoginNotification();
-    }
-  }, [user]);
-
   const pathname = usePathname();
 
   useEffect(() => {

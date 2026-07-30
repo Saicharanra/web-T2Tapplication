@@ -29,7 +29,7 @@ export async function rewardUserPoints(
   try {
     // 1. Fetch current user points
     const { data: user, error: fetchError } = await supabaseAdmin
-      .from("User")
+      .from("users")
       .select("points")
       .eq("id", userId)
       .single();
@@ -43,8 +43,8 @@ export async function rewardUserPoints(
 
     // 2. Update user points
     const { error: updateError } = await supabaseAdmin
-      .from("User")
-      .update({ points: newPoints, updatedAt: new Date().toISOString() })
+      .from("users")
+      .update({ points: newPoints, updated_at: new Date().toISOString() })
       .eq("id", userId);
 
     if (updateError) {
@@ -54,13 +54,13 @@ export async function rewardUserPoints(
 
     // 3. Insert points history record
     const { error: historyError } = await supabaseAdmin
-      .from("PointsHistory")
+      .from("points_history")
       .insert({
-        userId,
-        submissionId: `bin_${actionType}_${binId}`,
+        user_id: userId,
         points: pointsToAdd,
+        transaction_type: "EARNED",
         description: actionReason,
-        createdAt: new Date().toISOString(),
+        created_at: new Date().toISOString(),
       });
 
     if (historyError) {
