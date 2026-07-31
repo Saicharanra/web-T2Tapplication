@@ -951,27 +951,28 @@ export default function UserDashboard() {
                 >
                   <div className="relative h-32">
                     <Image
-                      src={submission.imageUrl}
-                      alt={submission.wasteType}
+                      src={submission.imageUrl || "/icon.png"}
+                      alt={submission.wasteType || (submission as any).category || "Recycling submission"}
                       fill
                       className="object-cover"
                       unoptimized={!!submission.imageUrl && typeof submission.imageUrl === "string" && submission.imageUrl.startsWith("data:")}
                     />
                     <div className="absolute top-2 right-2">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs font-semibold ${submission.status === "VERIFIED"
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase ${
+                          (submission.status || "").toUpperCase() === "VERIFIED" || (submission.status || "").toUpperCase() === "APPROVED"
                           ? "bg-green-500 text-white"
-                          : submission.status === "REJECTED"
+                          : (submission.status || "").toUpperCase() === "REJECTED"
                             ? "bg-red-500 text-white"
-                            : "bg-yellow-500 text-white"
+                            : "bg-amber-500 text-white shadow-sm animate-pulse"
                           }`}
                       >
-                        {submission.status}
+                        {(submission.status || "PENDING").toUpperCase()}
                       </span>
                     </div>
                   </div>
                   <div className="p-3">
-                    <p className="font-semibold text-gray-900">{submission.wasteType}</p>
+                    <p className="font-semibold text-gray-900">{submission.wasteType || (submission as any).category || "Waste Item"}</p>
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-sm text-gray-600" suppressHydrationWarning={true}>
                         {

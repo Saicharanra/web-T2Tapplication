@@ -34,11 +34,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const syncUserSession = async (sessionUser: any) => {
-    try {
-      const name = sessionUser.user_metadata.full_name || sessionUser.user_metadata.name || sessionUser.email?.split("@")[0] || "User";
-      const email = sessionUser.email || "";
-      const imageUrl = sessionUser.user_metadata.avatar_url || sessionUser.user_metadata.picture || null;
+    const name = sessionUser.user_metadata?.full_name || sessionUser.user_metadata?.name || sessionUser.email?.split("@")[0] || "User";
+    const email = sessionUser.email || "";
+    const imageUrl = sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture || null;
 
+    try {
       const syncRes = await fetch("/api/auth/supabase-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,22 +52,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (syncRes.ok) {
         const syncData = await syncRes.json();
-        localStorage.setItem("t2t_user_id", syncData.userId);
+        const finalUserId = syncData.userId || sessionUser.id;
+        localStorage.setItem("t2t_user_id", finalUserId);
         setUser({
-          uid: syncData.userId,
+          uid: finalUserId,
           email,
           name,
           role: syncData.role || "USER",
           level: syncData.level || "BRONZE",
-          points: syncData.points || 0,
+          points: syncData.points ?? 0,
           imageUrl,
           photoURL: imageUrl,
           displayName: name,
         });
+        return;
       }
     } catch (err) {
       console.error("⚠️ Supabase Auth session sync failed:", err);
     }
+
+    // Fallback: populate user state directly from Supabase session if API sync failed
+    localStorage.setItem("t2t_user_id", sessionUser.id);
+    setUser({
+      uid: sessionUser.id,
+      email,
+      name,
+      role: "USER",
+      level: "BRONZE",
+      points: 0,
+      imageUrl,
+      photoURL: imageUrl,
+      displayName: name,
+    });
   };
 
   useEffect(() => {

@@ -250,7 +250,56 @@ class DocumentReference {
     pgData.id = this.id;
 
     const { error } = await supabaseAdmin.from(table).upsert(pgData);
-    if (error) throw new Error(error.message);
+    if (!error) return;
+
+    // Fallback for waste_submissions if flat schema columns (e.g., 'category') do not exist in DB
+    if (table === "waste_submissions") {
+      const rawCategory = data.wasteType || data.category || "Plastic";
+      let catId = data.category_id || null;
+
+      // Try matching category_id from name
+      if (!catId && rawCategory) {
+        try {
+          const matchName = rawCategory.toLowerCase().includes("paper") ? "Paper"
+            : rawCategory.toLowerCase().includes("metal") ? "Metal"
+            : rawCategory.toLowerCase().includes("glass") ? "Glass"
+            : rawCategory.toLowerCase().includes("e-waste") || rawCategory.toLowerCase().includes("electronic") ? "E-Waste"
+            : rawCategory.toLowerCase().includes("organic") ? "Organic"
+            : "Plastic";
+
+          const { data: catRow } = await supabaseAdmin
+            .from("waste_categories")
+            .select("id")
+            .eq("name", matchName)
+            .maybeSingle();
+
+          if (catRow) catId = catRow.id;
+        } catch (e) {}
+      }
+
+      if (!catId) {
+        catId = "760e315a-07c3-4d48-bc48-92a54827dea1"; // Plastic category ID default
+      }
+
+      const masterPgData: any = {
+        id: this.id,
+        user_id: data.userId || data.user_id,
+        category_id: catId,
+        weight_kg: Number(data.weight_kg || data.weight || 1.0),
+        points_earned: Number(data.pointsEarned || data.points_earned || data.pointsAwarded || data.points_awarded || 0),
+        payout_amount: Number(data.payout_amount || data.payoutAmount || 0.00),
+        image_url: data.imageUrl || data.image_url || null,
+        status: (data.status || "pending").toLowerCase(),
+        created_at: data.createdAt ? new Date(data.createdAt).toISOString() : new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: masterErr } = await supabaseAdmin.from(table).upsert(masterPgData);
+      if (!masterErr) return;
+      throw new Error(masterErr.message);
+    }
+
+    throw new Error(error.message);
   }
 
   async update(data: any) {
@@ -265,7 +314,30 @@ class DocumentReference {
       .from(table)
       .update(pgData)
       .eq("id", this.id);
-    if (error) throw new Error(error.message);
+
+    if (!error) return;
+
+    // Fallback for waste_submissions master schema update
+    if (table === "waste_submissions") {
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (data.status) updateData.status = data.status.toLowerCase();
+      if (data.pointsEarned !== undefined || data.pointsAwarded !== undefined) {
+        updateData.points_earned = Number(data.pointsEarned ?? data.pointsAwarded ?? 0);
+      }
+      if (data.weight_kg !== undefined || data.weight !== undefined) {
+        updateData.weight_kg = Number(data.weight_kg ?? data.weight ?? 0);
+      }
+
+      const { error: masterErr } = await supabaseAdmin
+        .from(table)
+        .update(updateData)
+        .eq("id", this.id);
+
+      if (!masterErr) return;
+      throw new Error(masterErr.message);
+    }
+
+    throw new Error(error.message);
   }
 
   async delete() {

@@ -1,109 +1,94 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession, adminDb } from "@/lib/firebase-admin";
+import { verifySession } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+// Haversine formula — calculate distance in km between two coordinates
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
+// ─── GET: Fetch user's own submissions ────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
-    const decodedToken = await verifySession(req);
-    const userId = decodedToken.uid;
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await verifySession(req);
+    const userId = session.uid;
 
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get('status');
-    const limitNum = parseInt(searchParams.get('limit') || "20");
+    const status = searchParams.get("status");
+    const limitNum = parseInt(searchParams.get("limit") || "20");
 
-    // Fetch user data once
-    const userDoc = await adminDb.collection("users").doc(userId).get();
-    const userData = userDoc.exists ? userDoc.data() : null;
+    let query = supabaseAdmin
+      .from("waste_submissions")
+      .select(`
+        id, user_id, category, weight, location, latitude, longitude,
+        image_url, image_path, image_size, image_mime_type,
+        points_awarded, status, ai_confidence, rejection_reason, notes,
+        verified_at, created_at, updated_at,
+        profiles:user_id ( full_name, email )
+      `)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limitNum);
 
-    let slicedSubmissions: any[] = [];
-    
-    try {
-      // 1. Try highly optimized composite index query (newest first)
-      let query: any = adminDb.collection("submissions")
-        .where("userId", "==", userId);
+    if (status) query = query.eq("status", status.toUpperCase());
 
-      if (status) {
-        query = query.where("status", "==", status);
-      }
+    const { data: submissions, error } = await query;
 
-      query = query.orderBy("createdAt", "desc").limit(limitNum);
-      const submissionsSnapshot = await query.get();
-      
-      slicedSubmissions = submissionsSnapshot.docs.map((doc: any) => {
-        const subData = doc.data();
-        return {
-          id: doc.id,
-          ...subData,
-          createdAt: subData.createdAt?.toDate?.() || subData.createdAt,
-          user: userData ? {
-            name: userData.name,
-            email: userData.email,
-            level: userData.level
-          } : null
-        };
-      });
-    } catch (indexErr) {
-      console.warn("⚠️ Submissions index is missing or building. Falling back to in-memory sort...", indexErr);
-      
-      // 2. Fallback: Query equality filters and sort in-memory
-      let query: any = adminDb.collection("submissions").where("userId", "==", userId);
-
-      if (status) {
-        query = query.where("status", "==", status);
-      }
-
-      const submissionsSnapshot = await query.get();
-      const allSubmissions = submissionsSnapshot.docs.map((doc: any) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      // Sort in-memory: Newest first
-      allSubmissions.sort((a: any, b: any) => {
-        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
-        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
-        return dateB.getTime() - dateA.getTime();
-      });
-
-      slicedSubmissions = allSubmissions.slice(0, limitNum).map((sub: any) => ({
-        ...sub,
-        createdAt: sub.createdAt?.toDate?.() || sub.createdAt,
-        user: userData ? {
-          name: userData.name,
-          email: userData.email,
-          level: userData.level
-        } : null
-      }));
+    if (error) {
+      console.error("❌ Error fetching submissions:", error);
+      return NextResponse.json({ error: "Failed to fetch submissions" }, { status: 500 });
     }
 
-    return NextResponse.json({ submissions: slicedSubmissions }, { status: 200 });
+    // Shape response to match frontend expectations
+    const shaped = (submissions || []).map((s: any) => ({
+      id: s.id,
+      userId: s.user_id,
+      wasteType: s.category,
+      weight: s.weight,
+      location: s.location,
+      latitude: s.latitude,
+      longitude: s.longitude,
+      imageUrl: s.image_url,
+      imagePath: s.image_path,
+      imageSize: s.image_size,
+      imageMimeType: s.image_mime_type,
+      pointsAwarded: s.points_awarded,
+      status: s.status,
+      aiConfidence: s.ai_confidence,
+      rejectionReason: s.rejection_reason,
+      notes: s.notes,
+      verifiedAt: s.verified_at,
+      createdAt: s.created_at,
+      updatedAt: s.updated_at,
+      user: s.profiles
+        ? { name: s.profiles.full_name, email: s.profiles.email }
+        : null,
+    }));
+
+    return NextResponse.json({ submissions: shaped }, { status: 200 });
   } catch (error: any) {
-    console.error("Error fetching submissions:", error);
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    return NextResponse.json(
-      { error: "Failed to fetch submissions" },
-      { status: 500 }
-    );
+    const status = error.message?.startsWith("Unauthorized") ? 401 : 500;
+    return NextResponse.json({ error: error.message || "Failed to fetch submissions" }, { status });
   }
 }
 
+// ─── POST: Create new waste submission ────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const decodedToken = await verifySession(req);
-    const userId = decodedToken.uid;
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await verifySession(req);
+    const userId = session.uid;
 
     const body = await req.json();
     const {
@@ -119,198 +104,108 @@ export async function POST(req: NextRequest) {
     } = body;
 
     if (!wasteType || !imageUrl || !imagePath || !location) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    let userDoc = await adminDb.collection("users").doc(userId).get();
-    let userData = userDoc.exists ? userDoc.data() : null;
+    const parsedLat = latitude != null ? Number(latitude) : null;
+    const parsedLng = longitude != null ? Number(longitude) : null;
+    const id = submissionId || crypto.randomUUID();
 
-    if (!userDoc.exists) {
-      console.log(`👤 User ${userId} not found in database. Creating basic profile...`);
-      try {
-        const { adminAuth } = require("@/lib/firebase-admin");
-        const userAuth = await adminAuth.getUser(userId);
-        
-        userData = {
-          name: userAuth.displayName || userAuth.email?.split('@')[0] || "User",
-          email: userAuth.email || "",
-          role: "USER",
-          level: "BRONZE",
-          points: 0,
-          status: "ACTIVE",
-          joinedAt: new Date(),
-          updatedAt: new Date(),
-        };
+    // Insert into Supabase waste_submissions
+    const { data: submission, error: insertError } = await supabaseAdmin
+      .from("waste_submissions")
+      .insert({
+        id,
+        user_id: userId,
+        category: wasteType,
+        image_url: imageUrl,
+        image_path: imagePath,
+        image_size: imageSize || 0,
+        image_mime_type: imageMimeType || "image/jpeg",
+        location,
+        latitude: parsedLat,
+        longitude: parsedLng,
+        status: "PENDING",
+        points_awarded: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select("*")
+      .single();
 
-        await adminDb.collection("users").doc(userId).set(userData);
-        console.log(`✅ Basic profile created for ${userId}`);
-      } catch (authError) {
-        console.error("❌ Error fetching user from Auth or creating profile:", authError);
-        return NextResponse.json(
-          { error: "User profile not found and could not be created automatically." },
-          { status: 404 }
-        );
-      }
+    if (insertError) {
+      console.error("❌ Error creating submission:", insertError);
+      return NextResponse.json({ error: "Failed to create submission", details: insertError.message }, { status: 500 });
     }
 
-    const id = submissionId || adminDb.collection("submissions").doc().id;
-
-    const parsedLat = latitude !== undefined && latitude !== null ? Number(latitude) : null;
-    const parsedLng = longitude !== undefined && longitude !== null ? Number(longitude) : null;
-
-    const submissionData = {
-      id,
-      userId,
-      wasteType,
-      imageUrl,
-      imagePath,
-      imageSize: imageSize || 0,
-      imageMimeType: imageMimeType || 'image/jpeg',
-      location,
-      latitude: parsedLat,
-      longitude: parsedLng,
-      status: 'PENDING',
-      pointsAwarded: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    console.log(`📝 Storing submission ${id} for user ${userId}`);
-    await adminDb.collection("submissions").doc(id).set(submissionData);
-
-    // 🤖 Auto-verify with the ML model (fire-and-forget — the user isn't blocked).
-    // The ML service downloads the image, identifies the waste object, checks for
-    // duplicates, and writes VERIFIED/REJECTED + per-category points straight into
-    // Supabase. Wrapped so it can never break submission creation.
+    // 🤖 Auto-verify via ML service (fire-and-forget)
     try {
       const mlUrl = process.env.ML_SERVICE_URL;
       if (mlUrl) {
-        fetch(`${mlUrl.replace(/\/$/, "")}/verify/${id}`, { method: "POST" })
-          .catch((e) => console.error("⚠️ ML auto-verify call failed:", e));
+        fetch(`${mlUrl.replace(/\/$/, "")}/verify/${id}`, { method: "POST" }).catch((e) =>
+          console.error("⚠️ ML auto-verify call failed:", e)
+        );
       }
-    } catch (mlErr) {
-      console.error("⚠️ ML auto-verify dispatch error:", mlErr);
-    }
+    } catch (_) {}
 
-    // Coordinated Notifications (In-App + Transactional Resend Emails)
+    // 📣 In-App Notification
     try {
-      if (userData && userData.email) {
-        const email = userData.email;
-        const name = userData.name || "Eco Partner";
-        const { sendEmail } = await import("@/lib/notifications/sendEmail");
-
-        // A: Log In-App Notification
-        await adminDb.collection("notifications").add({
-          userId,
-          email,
-          type: "submission_received",
-          title: "Submission Received",
-          message: "Your disposal submission has been successfully received and is pending review.",
-          read: false,
-          createdAt: new Date(),
-        });
-
-        // B: Send Resend Email
-        await sendEmail(email, "Disposal Submission Received", "received", {
-          name,
-          wasteType,
-          location,
-        });
-      }
+      await supabaseAdmin.from("notifications").insert({
+        user_id: userId,
+        email: session.email,
+        type: "submission_received",
+        title: "Submission Received",
+        message: "Your disposal submission has been received and is pending review.",
+        read: false,
+        created_at: new Date().toISOString(),
+      });
     } catch (notifErr) {
-      console.error("⚠️ Failed to dispatch post-submission notifications:", notifErr);
+      console.warn("⚠️ Failed to insert submission notification:", notifErr);
     }
 
-    // Dynamic Automatic Shared Waste-Bin Mapping and Grouping (50 meters threshold)
-    if (parsedLat !== null && parsedLng !== null && !isNaN(parsedLat) && !isNaN(parsedLng)) {
+    // 🗺️ Auto-map waste bin (50-meter grouping threshold)
+    if (parsedLat != null && parsedLng != null && !isNaN(parsedLat) && !isNaN(parsedLng)) {
       try {
-        const binsSnapshot = await adminDb.collection("bins").get();
-        let nearbyBinFound = false;
+        const { data: bins } = await supabaseAdmin.from("bins").select("id, latitude, longitude");
+        const nearby = (bins || []).find(
+          (b: any) =>
+            b.latitude != null &&
+            b.longitude != null &&
+            calculateDistance(parsedLat, parsedLng, Number(b.latitude), Number(b.longitude)) < 0.05
+        );
 
-        for (const doc of binsSnapshot.docs) {
-          const binData = doc.data();
-          if (binData.latitude !== undefined && binData.longitude !== undefined) {
-            const dist = calculateDistance(
-              parsedLat,
-              parsedLng,
-              Number(binData.latitude),
-              Number(binData.longitude)
-            );
-            // 50 meters grouping threshold (0.05 km)
-            if (dist < 0.05) {
-              nearbyBinFound = true;
-              console.log(`📌 Automatic Grouping: disposal matches existing bin spot: ${doc.id}`);
-              break;
-            }
-          }
-        }
-
-        if (!nearbyBinFound) {
-          const newBinId = adminDb.collection("bins").doc().id;
-          const newBinData = {
-            id: newBinId,
+        if (!nearby) {
+          await supabaseAdmin.from("bins").insert({
+            id: crypto.randomUUID(),
             name: `${wasteType || "Waste"} Disposal Point`,
-            address: location || "Community disposal area",
+            address: location,
             latitude: parsedLat,
             longitude: parsedLng,
-            locationType: "collection_point",
-            photoUrl: imageUrl || "",
-            addedBy: userId,
-            createdAt: new Date(),
-          };
-
-          await adminDb.collection("bins").doc(newBinId).set(newBinData);
-          console.log(`🆕 Automatic Mapped Bin: registered new crowdsourced waste point: ${newBinId}`);
+            location_type: "collection_point",
+            photo_url: imageUrl,
+            added_by: userId,
+            created_at: new Date().toISOString(),
+          });
         }
-      } catch (err) {
-        console.error("⚠️ Error processing automatic shared bin network:", err);
+      } catch (binErr) {
+        console.warn("⚠️ Bin mapping error:", binErr);
       }
     }
 
-    const submissionWithUser = {
-      ...submissionData,
-      user: {
-        name: userData?.name,
-        email: userData?.email
-      }
-    };
-
-    return NextResponse.json({ submission: submissionWithUser }, { status: 201 });
-  } catch (error: any) {
-    console.error("❌ Error creating submission:", error);
-    
-    const errorMessage = error.message || "Failed to create submission";
-    const status = error.code === 'permission-denied' ? 403 : 500;
-
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    
     return NextResponse.json(
-      { 
-        error: "Failed to create submission",
-        details: errorMessage
+      {
+        submission: {
+          ...submission,
+          userId: submission.user_id,
+          wasteType: submission.category,
+          imageUrl: submission.image_url,
+          user: { name: session.name, email: session.email },
+        },
       },
-      { status }
+      { status: 201 }
     );
+  } catch (error: any) {
+    const status = error.message?.startsWith("Unauthorized") ? 401 : 500;
+    return NextResponse.json({ error: error.message || "Failed to create submission" }, { status });
   }
 }
-
-// Haversine formula to calculate exact distance in km
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth's radius in km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-

@@ -1,54 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession, adminDb } from "@/lib/firebase-admin";
+import { verifySession } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-server";
+import { getUserTotalPoints } from "@/lib/user-points";
 
-
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const decodedToken = await verifySession(req);
-    const userId = decodedToken.uid;
+    const session = await verifySession(req);
+    const userId = session.uid;
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { totalPoints, historyEarned } = await getUserTotalPoints(userId);
 
-    // Fetch total points for the user
-    const pointsHistorySnapshot = await adminDb.collection("pointsHistory")
-      .where("userId", "==", userId)
-      .get();
-    
-    const pointsHistory = pointsHistorySnapshot.docs.map(doc => doc.data());
-    const totalPoints = pointsHistory.reduce((sum, record) => sum + (record.points || 0), 0);
+    // Fetch points history for record count
+    const { data: history } = await supabaseAdmin
+      .from("points_history")
+      .select("points, transaction_type, created_at")
+      .eq("user_id", userId);
 
-    // Calculate average points
-    const avgPoints = pointsHistory.length > 0 ? totalPoints / pointsHistory.length : 0;
-
-    // Find top earner globally
-    const topEarnerSnapshot = await adminDb.collection("users")
-      .orderBy("points", "desc")
-      .limit(1)
-      .get();
-    
-    const topEarner = !topEarnerSnapshot.empty ? {
-        name: topEarnerSnapshot.docs[0].data().name,
-        points: topEarnerSnapshot.docs[0].data().points
-    } : null;
+    const avgPoints = (history || []).length > 0 ? totalPoints / (history || []).length : 0;
 
     return NextResponse.json({
-      totalPoints: totalPoints || 0,
-      avgPoints: Math.round(avgPoints || 0),
-      topEarner,
+      totalPoints,
+      points: totalPoints,
+      avgPoints: Math.round(avgPoints),
+      topEarner: null,
     });
   } catch (error: any) {
-    console.error("Error fetching points stats:", error);
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    return NextResponse.json(
-      { error: "Failed to fetch points statistics" },
-      { status: 500 }
-    );
+    const status = error.message?.startsWith("Unauthorized") ? 401 : 500;
+    return NextResponse.json({ error: error.message || "Failed to fetch points statistics" }, { status });
   }
 }

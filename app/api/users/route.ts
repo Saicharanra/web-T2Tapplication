@@ -1,55 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession, adminDb } from "@/lib/firebase-admin";
+import { verifySession } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
-
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const decodedToken = await verifySession(req);
-    const userId = decodedToken.uid;
+    const session = await verifySession(req);
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Verify Admin Role
-    const userDoc = await adminDb.collection("users").doc(userId).get();
-    if (!userDoc.exists || !["ADMIN","OWNER"].includes(userDoc.data()?.role)) {
-      // In some apps, regular users can see other users. 
-      // But based on the original code, it seems like a general list.
-      // I'll keep it admin only for security if it returns all users.
+    if (!["ADMIN", "OWNER", "SUPER_ADMIN"].includes(session.role)) {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
-    const usersSnapshot = await adminDb.collection("users")
-      .orderBy("points", "desc")
-      .get();
+    const { data: users, error } = await supabaseAdmin
+      .from("profiles")
+      .select(`
+        id, email, full_name, role, status, avatar_url, created_at,
+        waste_submissions ( id )
+      `)
+      .order("created_at", { ascending: false });
 
-    const users = await Promise.all(usersSnapshot.docs.map(async (doc) => {
-      const userData = doc.data();
-      const submissionsSnapshot = await adminDb.collection("submissions")
-        .where("userId", "==", doc.id)
-        .count()
-        .get();
-      
-      return {
-        id: doc.id,
-        ...userData,
-        submissions: { count: submissionsSnapshot.data().count }
-      };
+    if (error) {
+      console.error("❌ Error fetching users:", error);
+      return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
+    }
+
+    const shaped = (users || []).map((u: any) => ({
+      id: u.id,
+      name: u.full_name,
+      email: u.email,
+      role: u.role,
+      status: u.status,
+      avatarUrl: u.avatar_url,
+      joinedAt: u.created_at,
+      submissions: { count: (u.waste_submissions || []).length },
     }));
 
-    return NextResponse.json(users);
+    return NextResponse.json(shaped);
   } catch (error: any) {
-    console.error("Error fetching users:", error);
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    return NextResponse.json(
-      { error: "Failed to fetch users" },
-      { status: 500 }
-    );
+    const status = error.message?.startsWith("Unauthorized") ? 401 : 500;
+    return NextResponse.json({ error: error.message || "Failed to fetch users" }, { status });
   }
 }

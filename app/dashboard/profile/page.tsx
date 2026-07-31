@@ -842,7 +842,7 @@ export default function ProfilePage() {
                   <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl overflow-hidden bg-gray-100 shrink-0 border border-gray-100 relative">
                     <Image 
                       src={sub.imageUrl} 
-                      alt={sub.wasteType} 
+                      alt={sub.wasteType || "Waste submission"} 
                       fill
                       className="object-cover transition-transform group-hover:scale-110 duration-500"
                       unoptimized
@@ -876,7 +876,7 @@ export default function ProfilePage() {
                           </p>
                         ) : sub.status === 'PENDING' ? (
                           <p className="text-xs font-bold text-amber-600 mr-2">
-                            +{({
+                            +{sub.pointsAwarded || ({
                               "Plastic Bottles": 15,
                               "Paper Waste": 10,
                               "Metal Cans": 25,
@@ -885,7 +885,7 @@ export default function ProfilePage() {
                               "E-Waste": 50,
                               "Organic Waste": 18,
                               "Mixed Recyclables": 8
-                            }[sub.wasteType] || 0)} pts (Pending)
+                            }[sub.wasteType || ""] || 0)} pts (Pending)
                           </p>
                         ) : (
                           <p className="text-xs font-bold text-red-600 mr-2">
@@ -926,7 +926,7 @@ export default function ProfilePage() {
               <div className="relative aspect-video w-full bg-gray-100">
                 <Image 
                   src={selectedSubmission.imageUrl} 
-                  alt={selectedSubmission.wasteType}
+                  alt={selectedSubmission.wasteType || "Selected waste submission"}
                   fill
                   className="object-contain"
                   unoptimized

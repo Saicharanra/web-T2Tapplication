@@ -1,57 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession, adminDb } from "@/lib/firebase-admin";
-
+import { verifySession } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const decodedToken = await verifySession(req);
-    const userId = decodedToken.uid;
+    const session = await verifySession(req);
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const userDoc = await adminDb.collection("users").doc(userId).get();
-    const user = userDoc.data();
-
-    if (!userDoc.exists) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    if (!["ADMIN","OWNER"].includes(user?.role ?? "")) {
+    if (!["ADMIN", "OWNER", "SUPER_ADMIN"].includes(session.role)) {
       return NextResponse.json(
-        { error: "Forbidden: Admin access required", currentRole: user?.role },
+        { error: "Forbidden: Admin access required", currentRole: session.role },
         { status: 403 }
       );
     }
 
-    // Parse query parameters
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
 
-    // Build query
-    let query: any = adminDb.collection("submissions");
+    let query = supabaseAdmin
+      .from("waste_submissions")
+      .select("*", { count: "exact", head: true });
 
-    if (status) {
-      query = query.where("status", "==", status);
+    if (status) query = (query as any).eq("status", status.toUpperCase());
+
+    const { count, error } = await query;
+
+    if (error) {
+      console.error("❌ Error counting submissions:", error);
+      return NextResponse.json({ error: "Failed to count submissions" }, { status: 500 });
     }
-
-    const snapshot = await query.count().get();
-    const count = snapshot.data().count;
 
     return NextResponse.json({ count: count || 0 });
   } catch (error: any) {
-    console.error("?? Server Error:", error);
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    return NextResponse.json(
-      { error: "Failed to count submissions" },
-      { status: 500 }
-    );
+    const httpStatus = error.message?.startsWith("Unauthorized") ? 401 : 500;
+    return NextResponse.json({ error: error.message || "Failed to count submissions" }, { status: httpStatus });
   }
 }

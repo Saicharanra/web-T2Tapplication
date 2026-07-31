@@ -23,29 +23,58 @@ export default function SignUpClient() {
     setError("");
     setLoading(true);
     try {
-      // 1. Register user directly via Supabase Auth
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      // 1. Register user via Supabase Auth
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
-          data: {
-            full_name: `${firstName} ${lastName}`.trim(),
-          },
+          data: { full_name: fullName },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
       if (signUpError) throw signUpError;
 
-      // 2. Check if verification is pending (session is null when email confirmation is enabled)
+      // 2. Email confirmation pending — show the verification screen
       if (data.user && !data.session) {
         setIsPendingVerification(true);
         return;
       }
 
+      // 3. Session is live — sync public profile records
+      if (data.user && data.session) {
+        try {
+          await fetch("/api/auth/supabase-sync", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              // Pass the JWT so the API can trust this request
+              Authorization: `Bearer ${data.session.access_token}`,
+            },
+            body: JSON.stringify({
+              id: data.user.id,
+              name: fullName,
+              email: email.trim().toLowerCase(),
+            }),
+          });
+        } catch (syncErr) {
+          // Non-blocking — the trigger should have already created the profile
+          console.warn("⚠️ supabase-sync call failed (trigger may cover this):", syncErr);
+        }
+      }
+
       router.push("/dashboard/home");
     } catch (err: any) {
-      setError(err.message || "Failed to create account");
+      console.error("❌ Sign up error caught:", err);
+      let msg = "Failed to create account. Please try again.";
+      if (typeof err === "string") msg = err;
+      else if (err?.message && err.message !== "{}") msg = err.message;
+      else if (err?.error_description) msg = err.error_description;
+      else if (err?.name === "AuthRetryableFetchError" || err?.message === "{}")
+        msg = "Database configuration error. Please run the SQL migration in Supabase.";
+      setError(msg);
     } finally {
       setLoading(false);
     }

@@ -1,229 +1,180 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySession, adminDb } from "@/lib/firebase-admin";
+import { verifySession } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase-server";
 
-
-
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const DEFAULT_WASTE_POINTS: Record<string, number> = {
   "Plastic Bottles": 15,
   "Paper Waste": 10,
   "Metal Cans": 25,
   "Glass Bottles": 20,
-  "Cardboard": 12,
+  Cardboard: 12,
   "E-Waste": 50,
   "Organic Waste": 18,
-  "Mixed Recyclables": 8
+  "Mixed Recyclables": 8,
 };
 
-const STREAK_BONUSES: Record<number, number> = {
-  5: 20,
-  10: 50,
-  15: 100,
-  30: 150
-};
-
-export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ id: string }> }
+) {
+  const { id: submissionId } = await props.params;
   try {
-    const decodedToken = await verifySession(req);
-    const adminUserId = decodedToken.uid;
+    const session = await verifySession(req);
 
-    if (!adminUserId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const adminUserDoc = await adminDb.collection("users").doc(adminUserId).get();
-    if (!adminUserDoc.exists || !["ADMIN","OWNER"].includes(adminUserDoc.data()?.role)) {
+    if (!["ADMIN", "OWNER", "SUPER_ADMIN"].includes(session.role)) {
       return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
     }
 
     const body = await req.json();
-    const { status, points, rejectionReason } = body;
+    const { status, rejectionReason } = body;
 
     if (!status) {
       return NextResponse.json({ error: "Status is required" }, { status: 400 });
     }
 
-    // Run transaction
-    console.log(`🔄 Starting transaction for submission ${params.id}...`);
-    const result = await adminDb.runTransaction(async (transaction) => {
-      const submissionRef = adminDb.collection("submissions").doc(params.id);
-      const submissionDoc = await transaction.get(submissionRef);
+    // 1. Fetch submission
+    const { data: submission, error: fetchErr } = await supabaseAdmin
+      .from("waste_submissions")
+      .select("id, user_id, category, status, points_awarded")
+      .eq("id", submissionId)
+      .maybeSingle();
 
-      if (!submissionDoc.exists) {
-        console.error(`❌ Submission ${params.id} not found`);
-        throw new Error("Submission not found");
-      }
+    if (fetchErr || !submission) {
+      return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+    }
 
-      const submissionData = submissionDoc.data()!;
-      const userId = submissionData.userId;
-      const wasteType = submissionData.wasteType;
-      
-      // Fetch dynamic points config
-      const settingsDoc = await transaction.get(adminDb.collection("settings").doc("pointsConfig"));
-      const pointsConfig = settingsDoc.exists ? settingsDoc.data() as Record<string, number> : DEFAULT_WASTE_POINTS;
+    // Prevent duplicate verification
+    if (submission.status === "VERIFIED" && status === "VERIFIED") {
+      return NextResponse.json({
+        submission: { id: submissionId, status: "VERIFIED", pointsAwarded: submission.points_awarded },
+        message: "Submission was already verified",
+      });
+    }
 
-      // STRICT ENFORCEMENT: Always use the global settings. No manual overrides allowed.
-      const pointsToAward = pointsConfig[wasteType] || 10;
-      
-      if (!userId) {
-        console.error(`❌ Submission ${params.id} is corrupted: missing userId`);
-        throw new Error("Submission data is corrupted: missing userId");
-      }
+    const userId = submission.user_id;
+    const wasteType = submission.category;
 
-      // Prevent duplicate verification if status is already set
-      if (submissionData.status === 'VERIFIED' && status === 'VERIFIED') {
-        console.warn(`⚠️ Submission ${params.id} is already verified.`);
-        return {
-          id: params.id,
-          status: submissionData.status,
-          pointsAwarded: submissionData.pointsAwarded,
-          message: "Submission was already verified"
-        };
-      }
-
-      // --- ALL READS MUST HAPPEN HERE ---
-      let userDoc = null;
-      let userRef = null;
-      if (status === 'VERIFIED') {
-        userRef = adminDb.collection("users").doc(userId);
-        userDoc = await transaction.get(userRef);
-      }
-      // --- END OF READS ---
-
-      // --- ALL WRITES MUST HAPPEN HERE ---
-      console.log(`📝 Updating submission status to ${status} for user ${userId} with ${pointsToAward} points`);
-
-      // Update submission data defensively
-      const updateData: any = {
-        status,
-        pointsAwarded: status === 'VERIFIED' ? pointsToAward : 0,
-        verifiedAt: status === 'VERIFIED' ? new Date() : null,
-        assignedAdminId: adminUserId || 'system',
-        updatedAt: new Date(),
-      };
-
-      if (status === 'REJECTED') {
-        updateData.rejectionReason = rejectionReason || 'No reason provided';
-      }
-
-      transaction.update(submissionRef, updateData);
-
-      if (status === 'VERIFIED' && userRef && userDoc) {
-        if (userDoc.exists) {
-          const userData = userDoc.data()!;
-          const currentPoints = Number(userData.points) || 0;
-          const newPoints = currentPoints + pointsToAward;
-          
-          console.log(`💰 Awarding ${pointsToAward} points to user ${userId}. New total: ${newPoints}`);
-          
-          transaction.update(userRef, { 
-            points: newPoints,
-            updatedAt: new Date()
-          });
-
-          // Create points history record
-          const historyRef = adminDb.collection("pointsHistory").doc();
-          transaction.set(historyRef, {
-            userId: userId,
-            submissionId: params.id,
-            points: pointsToAward,
-            description: `Points earned from ${wasteType || 'recycling'}`,
-            type: 'EARNED',
-            createdAt: new Date(),
-          });
-        } else {
-          console.warn(`⚠️ User ${userId} not found in database. Skipping point award.`);
-        }
-      }
-
-      return {
-        id: params.id,
-        status,
-        pointsAwarded: status === 'VERIFIED' ? pointsToAward : 0,
-      };
-    });
-
-    console.log(`✅ Transaction completed for ${params.id}`);
-
-    // Dynamic Coordinated Notifications (In-App + Transactional Resend Emails)
+    // 2. Fetch points config from system_settings
+    let pointsConfig: Record<string, number> = DEFAULT_WASTE_POINTS;
     try {
-      const submissionDoc = await adminDb.collection("submissions").doc(params.id).get();
-      const submissionData = submissionDoc.data();
-      
-      if (submissionData) {
-        const userId = submissionData.userId;
-        const userDoc = await adminDb.collection("users").doc(userId).get();
-        const userData = userDoc.exists ? userDoc.data() : null;
+      const { data: settings } = await supabaseAdmin
+        .from("system_settings")
+        .select("key, value")
+        .like("key", "points_%");
 
-        if (userData && userData.email) {
-          const email = userData.email;
-          const name = userData.name || "Eco Partner";
-          const wasteType = submissionData.wasteType || "Waste Disposal";
-          const { sendEmail } = await import("@/lib/notifications/sendEmail");
+      if (settings && settings.length > 0) {
+        const cfg: Record<string, number> = {};
+        settings.forEach((s: any) => {
+          const type = s.key.replace("points_", "").replace(/_/g, " ");
+          cfg[type] = Number(s.value) || 0;
+        });
+        if (Object.keys(cfg).length > 0) pointsConfig = cfg;
+      }
+    } catch (_) {}
 
-          if (status === "VERIFIED") {
-            // A: Log In-App Notification
-            await adminDb.collection("notifications").add({
-              userId,
-              email,
-              type: "submission_approved",
-              title: "Submission Approved",
-              message: "Congratulations! Your submission has been approved and reward points have been added to your account.",
-              read: false,
-              createdAt: new Date(),
-            });
+    const pointsToAward = pointsConfig[wasteType] ?? 10;
 
-            // B: Send Resend Email
-            await sendEmail(email, "Disposal Submission Approved 🎉", "approved", {
-              name,
-              wasteType,
-              points: result.pointsAwarded,
-            });
-          } else if (status === "REJECTED") {
-            const reason = rejectionReason || "Your submission could not be verified. Please review the image and try again.";
+    // 3. Update submission status
+    const updateData: any = {
+      status: status.toUpperCase(),
+      points_awarded: status === "VERIFIED" ? pointsToAward : 0,
+      verified_at: status === "VERIFIED" ? new Date().toISOString() : null,
+      assigned_admin_id: session.uid,
+      updated_at: new Date().toISOString(),
+    };
 
-            // A: Log In-App Notification
-            await adminDb.collection("notifications").add({
-              userId,
-              email,
-              type: "submission_rejected",
-              title: "Submission Rejected",
-              message: "Your submission could not be verified. Please review the image and try again.",
-              read: false,
-              createdAt: new Date(),
-            });
+    if (status === "REJECTED") {
+      updateData.rejection_reason = rejectionReason || "No reason provided";
+    }
 
-            // B: Send Resend Email
-            await sendEmail(email, "Disposal Submission Update", "rejected", {
-              name,
-              wasteType,
-              reason,
-            });
-          }
-        }
+    const { error: updateErr } = await supabaseAdmin
+      .from("waste_submissions")
+      .update(updateData)
+      .eq("id", submissionId);
+
+    if (updateErr) {
+      return NextResponse.json({ error: "Failed to update submission", details: updateErr.message }, { status: 500 });
+    }
+
+    // 4. Award points if VERIFIED
+    if (status === "VERIFIED") {
+      // Update user points balance
+      await supabaseAdmin.rpc("increment_user_points", {
+        p_user_id: userId,
+        p_points: pointsToAward,
+      }).catch(async () => {
+        // Fallback: manual update if RPC doesn't exist
+        const { data: userRow } = await supabaseAdmin
+          .from("users")
+          .select("points")
+          .eq("id", userId)
+          .maybeSingle();
+        const currentPoints = Number(userRow?.points) || 0;
+        await supabaseAdmin
+          .from("users")
+          .update({ points: currentPoints + pointsToAward, updated_at: new Date().toISOString() })
+          .eq("id", userId);
+      });
+
+      // Record in points_history
+      await supabaseAdmin.from("points_history").insert({
+        user_id: userId,
+        submission_id: submissionId,
+        points: pointsToAward,
+        transaction_type: "EARNED",
+        description: `Points earned from ${wasteType || "recycling"}`,
+        created_at: new Date().toISOString(),
+      }).catch((e: any) => console.warn("⚠️ points_history insert:", e.message));
+    }
+
+    // 5. Notifications (in-app)
+    try {
+      const { data: userProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", userId)
+        .maybeSingle();
+
+      const email = userProfile?.email || "";
+      const name = userProfile?.full_name || "Eco Partner";
+
+      if (status === "VERIFIED") {
+        await supabaseAdmin.from("notifications").insert({
+          user_id: userId,
+          email,
+          type: "submission_approved",
+          title: "Submission Approved 🎉",
+          message: `Your ${wasteType} submission was approved! ${pointsToAward} points have been added to your account.`,
+          read: false,
+          created_at: new Date().toISOString(),
+        });
+      } else if (status === "REJECTED") {
+        await supabaseAdmin.from("notifications").insert({
+          user_id: userId,
+          email,
+          type: "submission_rejected",
+          title: "Submission Rejected",
+          message: rejectionReason || "Your submission could not be verified. Please review the image and try again.",
+          read: false,
+          created_at: new Date().toISOString(),
+        });
       }
     } catch (notifErr) {
-      console.error("⚠️ Failed to dispatch post-transaction notifications:", notifErr);
+      console.warn("⚠️ Notification insert failed:", notifErr);
     }
 
     return NextResponse.json({
-      submission: result,
-      message: status === 'VERIFIED' 
-        ? `Submission verified! ${result.pointsAwarded} points awarded.`
-        : 'Submission rejected.'
-    }, { status: 200 });
+      submission: { id: submissionId, status, pointsAwarded: status === "VERIFIED" ? pointsToAward : 0 },
+      message:
+        status === "VERIFIED"
+          ? `Submission verified! ${pointsToAward} points awarded.`
+          : "Submission rejected.",
+    });
   } catch (error: any) {
-    console.error("❌ Error in verify route:", error);
-    if (error.message.startsWith('Unauthorized')) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    return NextResponse.json(
-      { error: "Failed to verify submission", details: error.message },
-      { status: 500 }
-    );
+    const httpStatus = error.message?.startsWith("Unauthorized") ? 401 : 500;
+    return NextResponse.json({ error: error.message || "Failed to verify submission" }, { status: httpStatus });
   }
 }
