@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase-client";
 import { useToast } from "@/components/ui/use-toast";
 import { usePoints } from "../context/PointsContext";
 import { MyEcoTree } from "@/components/MyEcoTree";
+import { DynamicProfileLeaderboard } from "@/components/DynamicProfileLeaderboard";
 import { 
   Dialog, 
   DialogContent, 
@@ -187,7 +188,7 @@ export default function ProfilePage() {
           totalPoints: 300,
           mostRecycledType: "Plastic Bottle",
           mostRecycledCount: 15,
-          streak: 2,
+          streak: 0,
           verificationRate: 100,
           rank: 0
         });
@@ -749,16 +750,22 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white/60 backdrop-blur-md border border-white/50 hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
+        <Card 
+          onClick={() => document.getElementById('dynamic-leaderboard-section')?.scrollIntoView({ behavior: 'smooth' })}
+          className="bg-white/60 backdrop-blur-md border border-white/50 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-pointer group"
+        >
           <CardContent className="p-6">
             <div className="text-center">
               <div className="text-4xl mb-2 font-bold drop-shadow-sm">#{userStats?.rank ? userStats.rank : '--'}</div>
               <p className="text-3xl font-bold text-purple-600 drop-shadow-sm">Rank</p>
-              <p className="text-sm text-gray-700 mt-1 font-medium">Leaderboard</p>
+              <p className="text-sm text-gray-700 mt-1 font-medium group-hover:text-purple-600 transition-colors">Leaderboard ↘</p>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Dynamic Live Leaderboard Component */}
+      <DynamicProfileLeaderboard userPoints={globalPoints} />
 
       {/* My EcoTree Feature */}
       <MyEcoTree streak={userStats?.streak || 0} />

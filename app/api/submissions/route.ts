@@ -35,8 +35,7 @@ export async function GET(req: NextRequest) {
         id, user_id, category, weight, location, latitude, longitude,
         image_url, image_path, image_size, image_mime_type,
         points_awarded, status, ai_confidence, rejection_reason, notes,
-        verified_at, created_at, updated_at,
-        profiles:user_id ( full_name, email )
+        verified_at, created_at, updated_at
       `)
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
@@ -72,9 +71,7 @@ export async function GET(req: NextRequest) {
       verifiedAt: s.verified_at,
       createdAt: s.created_at,
       updatedAt: s.updated_at,
-      user: s.profiles
-        ? { name: s.profiles.full_name, email: s.profiles.email }
-        : null,
+      user: { name: session.name || "Eco Warrior", email: session.email || "" },
     }));
 
     return NextResponse.json({ submissions: shaped }, { status: 200 });

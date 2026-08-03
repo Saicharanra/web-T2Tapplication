@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { getUserTotalPoints } from "@/lib/user-points";
+import { calculateDailyStreak } from "@/lib/streak";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,11 +15,15 @@ export async function GET(req: NextRequest) {
     // 1. Get total user points using unified helper
     const { totalPoints } = await getUserTotalPoints(userId);
 
-    // 2. Count total waste submissions
-    const { count: totalSubmissions } = await supabaseAdmin
+    // 2. Fetch waste submissions for total count & streak calculation
+    const { data: submissions } = await supabaseAdmin
       .from("waste_submissions")
-      .select("*", { count: "exact", head: true })
+      .select("created_at")
       .eq("user_id", userId);
+
+    const totalSubmissions = submissions ? submissions.length : 0;
+    const submissionDates = (submissions || []).map((s: any) => s.created_at).filter(Boolean);
+    const streak = calculateDailyStreak(submissionDates);
 
     // 3. Determine user level tier
     let level = "BRONZE";
@@ -30,8 +35,8 @@ export async function GET(req: NextRequest) {
       totalPoints,
       points: totalPoints,
       level,
-      totalSubmissions: totalSubmissions || 0,
-      streak: totalSubmissions ? Math.min(totalSubmissions, 7) : 0,
+      totalSubmissions,
+      streak,
     });
   } catch (error: any) {
     const status = error.message?.startsWith("Unauthorized") ? 401 : 500;

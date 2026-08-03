@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import confetti from "canvas-confetti";
-import { Gift, Star, History, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { Gift, Star, History, CheckCircle2, Loader2, AlertCircle, Sparkles, RefreshCw, Recycle, Award } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -302,11 +302,70 @@ export default function RewardPage() {
 
       {/* Rewards Grid */}
       {unclaimedRewards.length === 0 ? (
-        <div className="bg-white border border-gray-100 rounded-2xl p-16 text-center shadow-sm">
-          <Gift className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-500 mb-2">No rewards available right now</h3>
-          <p className="text-gray-400">Check back soon — new rewards are added regularly!</p>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="relative bg-gradient-to-br from-emerald-50/90 via-teal-50/60 to-amber-50/80 backdrop-blur-2xl border border-emerald-100/80 shadow-2xl rounded-[2.5rem] p-8 md:p-14 text-center overflow-hidden my-6"
+        >
+          {/* Decorative background ambient glows */}
+          <div className="absolute -top-24 -left-24 w-72 h-72 bg-emerald-400/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-amber-400/20 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Central Floating Badge */}
+          <div className="relative z-10 max-w-lg mx-auto flex flex-col items-center">
+            <div className="relative mb-6">
+              <div className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-amber-400 p-0.5 shadow-xl flex items-center justify-center">
+                <div className="w-full h-full bg-white rounded-[1.4rem] flex items-center justify-center relative overflow-hidden">
+                  <Gift className="h-12 w-12 text-emerald-600 drop-shadow-sm" />
+                </div>
+              </div>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                className="absolute -top-2 -right-2 bg-amber-400 text-amber-950 p-2 rounded-full shadow-md"
+              >
+                <Sparkles className="h-4 w-4" />
+              </motion.div>
+            </div>
+
+            {/* Badge Pill */}
+            <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-emerald-100/80 text-emerald-900 text-xs font-bold mb-4 shadow-sm">
+              <Award className="h-4 w-4 text-emerald-600" /> Catalog Restocking Soon
+            </div>
+
+            {/* Title */}
+            <h3 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-700 bg-clip-text text-transparent mb-3">
+              No Active Rewards Right Now
+            </h3>
+
+            {/* Subtext */}
+            <p className="text-sm md:text-base text-gray-600 font-medium leading-relaxed mb-6">
+              You&apos;ve cleared the current catalog! Our partner eco-businesses are uploading new gift cards, vouchers, and exclusive merchandise.
+            </p>
+
+            {/* Micro action / Tip box */}
+            <div className="bg-white/90 backdrop-blur-md border border-emerald-100 rounded-2xl p-4 w-full shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 mb-2">
+              <div className="flex items-center gap-3 text-left">
+                <div className="p-2.5 rounded-xl bg-amber-100 text-amber-800 shrink-0">
+                  <Recycle className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-900">Keep Collecting Credits</p>
+                  <p className="text-[11px] text-gray-500">Every recycled item increases your balance so you can claim rewards fast!</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchRewards}
+                className="rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 shrink-0 font-bold text-xs shadow-xs"
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refresh List
+              </Button>
+            </div>
+          </div>
+        </motion.div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {unclaimedRewards.map((reward, i) => {
