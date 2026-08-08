@@ -23,13 +23,13 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
-import { Eye, MapPin } from "lucide-react";
+import { Eye, EyeOff,MapPin } from "lucide-react";
 
 interface Submission {
   id: string;
   wasteType: string;
   status: string;
-  imageUrl: string;
+  imageUrl: string; 
   pointsAwarded: number;
   createdAt: string;
   location: string;
@@ -81,11 +81,6 @@ export default function ProfilePage() {
   const [profileLocation, setProfileLocation] = useState("");
   const [updatingProfile, setUpdatingProfile] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   // Contact Us form state
   const [contactName, setContactName] = useState("");
@@ -337,74 +332,6 @@ export default function ProfilePage() {
     }
   };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "❌ Passwords Match Error",
-        description: "New password and confirmation password do not match.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (newPassword.length < 6) {
-      toast({
-        title: "❌ Password Too Short",
-        description: "Password must be at least 6 characters.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setChangingPassword(true);
-    try {
-      const { notify } = await import("@/lib/notifications/notify");
-
-      // Use native Supabase Auth client to update password
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) throw error;
-
-      // 2. Dispatch Coordinated Password Changed alert
-      await notify({
-        userId: user.uid,
-        email: user.email || "",
-        type: "password_changed",
-        title: "Password Changed Successfully 🔒",
-        message: "Your account password has been successfully updated.",
-      });
-
-      toast({
-        title: "✅ Password Updated",
-        description: "Your password has been changed successfully.",
-      });
-
-      setNewPassword("");
-      setConfirmPassword("");
-      setShowChangePasswordModal(false);
-    } catch (err: any) {
-      console.error("Failed to update password:", err);
-      if (err.code === "auth/requires-recent-login") {
-        toast({
-          title: "🔑 Reauthentication Needed",
-          description: "For security reasons, please log out and log back in before changing your password.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "❌ Password Update Failed",
-          description: err.message || "Failed to update password. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setChangingPassword(false);
-    }
-  };
-
   const getLevelColor = (level: string) => {
     switch (level) {
       case 'PLATINUM':
@@ -568,67 +495,6 @@ export default function ProfilePage() {
                 </Dialog>
               </motion.div>
 
-              {/* Change Password Dialog */}
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }} className="w-full lg:w-auto">
-                <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      className="w-full bg-white/10 hover:bg-white/20 border-white/20 hover:border-white/30 text-white gap-2 rounded-xl transition-all text-xs sm:text-sm px-2.5 py-5 sm:py-2 h-auto"
-                    >
-                      🔒 Password
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="bg-white/95 backdrop-blur-xl border-white/50 rounded-[2rem] max-w-md p-6 shadow-2xl">
-                    <DialogHeader>
-                      <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        🔒 Update Password
-                      </DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleChangePassword} className="space-y-4 mt-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">New Password</label>
-                        <Input
-                          type="password"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="Min 6 characters"
-                          required
-                          className="rounded-xl border-gray-200"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Confirm New Password</label>
-                        <Input
-                          type="password"
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Re-enter new password"
-                          required
-                          className="rounded-xl border-gray-200"
-                        />
-                      </div>
-                      <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          onClick={() => setShowChangePasswordModal(false)}
-                          className="rounded-xl"
-                        >
-                          Cancel
-                        </Button>
-                        <Button 
-                          type="submit" 
-                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold shadow-md"
-                          disabled={changingPassword}
-                        >
-                          {changingPassword ? "Updating..." : "Change Password"}
-                        </Button>
-                      </div>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              </motion.div>
 
               {/* Delete Account Dialog */}
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }} className="w-full lg:w-auto">
