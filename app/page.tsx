@@ -52,7 +52,7 @@ export default function HomePage() {
         "url": "https://trash2treasure.co.in",
         "image": "https://trash2treasure.co.in/icon.png",
         "description": "Gamified waste management and recycling rewards platform.",
-        "applicationCategory": "BusinessApplication, Environment",
+        "applicationCategory": "WebApplication, Environment",
         "operatingSystem": "All",
         "author": {
           "@id": "https://trash2treasure.co.in/#organization"

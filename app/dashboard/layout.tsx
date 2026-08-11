@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { isAdminRole } from "@/lib/roles";
 import { PointsProvider, usePoints } from "./context/PointsContext";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 
@@ -191,9 +192,7 @@ export default function DashboardLayout({
     if (!authLoading) {
       if (!user) {
         router.push("/sign-in");
-      } else if (user.role === "BUSINESS" || user.role === "business") {
-        router.push("/business");
-      } else if (user.role === "ADMIN") {
+      } else if (isAdminRole(user.role)) {
         router.push("/owner");
       }
     }
@@ -237,7 +236,7 @@ export default function DashboardLayout({
     );
   }
 
-  if (!user || user.role === "BUSINESS" || user.role === "business" || user.role === "ADMIN") {
+  if (!user || isAdminRole(user.role)) {
     return null;
   }
 

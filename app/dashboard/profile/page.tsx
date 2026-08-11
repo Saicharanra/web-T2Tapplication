@@ -61,7 +61,7 @@ interface UserStats {
 }
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const { points: globalPoints } = usePoints();
@@ -233,12 +233,11 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     try {
       setSigningOut(true);
-      localStorage.removeItem("t2t_user_id");
       toast({
         title: "👋 Logged Out",
         description: "You have been successfully logged out.",
       });
-      router.push('/');
+      await logout();
     } catch (error) {
       console.error('Error signing out:', error);
       toast({

@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Leaf, Mail, Lock, Loader2, ArrowRight, User, MapPin, Eye, EyeOff, X } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import logo from "@/assets/logo.png";
 import { supabase } from "@/lib/supabase-client";
 
 export default function SignUpClient() {
@@ -112,8 +114,8 @@ export default function SignUpClient() {
           transition={{ duration: 0.8 }}
           className="relative z-10 text-center max-w-lg"
         >
-          <div className="w-24 h-24 bg-emerald-500/20 backdrop-blur-xl rounded-3xl flex items-center justify-center mx-auto mb-10 border border-white/10 shadow-2xl shadow-emerald-500/20">
-            <Leaf className="w-12 h-12 text-emerald-400" />
+          <div className="flex justify-center mx-auto mb-8">
+            <Image src={logo} alt="Trash2Treasure Logo" className="w-28 h-auto object-contain drop-shadow-md" priority />
           </div>
           <h1 className="text-5xl font-extrabold text-white mb-6 tracking-tight leading-tight">
             Start Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">Green</span> Journey
@@ -166,9 +168,7 @@ export default function SignUpClient() {
         >
           {/* Logo (Mobile only) */}
           <div className="lg:hidden flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <Leaf className="w-6 h-6 text-white" />
-            </div>
+            <Image src={logo} alt="Trash2Treasure Logo" className="h-10 w-auto" priority />
             <span className="text-2xl font-bold text-white tracking-tight">Trash2Treasure</span>
           </div>
 
@@ -184,7 +184,7 @@ export default function SignUpClient() {
                     We've sent a verification link to <span className="text-white font-bold">{email}</span>. Please click the link to activate your account.
                   </p>
                 </div>
-                
+
                 <div className="p-5 bg-slate-900/40 border border-white/5 rounded-2xl text-left text-sm text-slate-400 space-y-3">
                   <p className="font-bold text-slate-300">Didn't receive the email?</p>
                   <ul className="list-disc pl-5 space-y-1">

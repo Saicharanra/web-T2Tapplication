@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Leaf, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, X } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import logo from "@/assets/logo.png";
 import { supabase } from "@/lib/supabase-client";
 import { useAuth } from "@/components/providers/AuthProvider";
 
@@ -111,8 +113,8 @@ export default function SignInClient() {
           transition={{ duration: 0.8 }}
           className="relative z-10 text-center max-w-lg"
         >
-          <div className="w-24 h-24 bg-teal-500/20 backdrop-blur-xl rounded-3xl flex items-center justify-center mx-auto mb-10 border border-white/10 shadow-2xl shadow-teal-500/20">
-            <Leaf className="w-12 h-12 text-teal-400" />
+          <div className="flex justify-center mx-auto mb-8">
+            <Image src={logo} alt="Trash2Treasure Logo" className="w-28 h-auto object-contain drop-shadow-md" priority />
           </div>
           <h1 className="text-5xl font-extrabold text-white mb-6 tracking-tight leading-tight">
             Waste to <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-emerald-400">Wealth</span>
@@ -164,9 +166,7 @@ export default function SignInClient() {
         >
           {/* Logo (Mobile only) */}
           <div className="lg:hidden flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-teal-500/20">
-              <Leaf className="w-6 h-6 text-white" />
-            </div>
+            <Image src={logo} alt="Trash2Treasure Logo" className="h-10 w-auto" priority />
             <span className="text-2xl font-bold text-white tracking-tight">Trash2Treasure</span>
           </div>
 

@@ -3,6 +3,7 @@
 import { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { isAdminRole } from "@/lib/roles";
 import { Loader2 } from "lucide-react";
 
 function AuthCallbackContent() {
@@ -13,10 +14,7 @@ function AuthCallbackContent() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        // Redirect based on role
-        if (user.role === "BUSINESS" || user.role === "business") {
-          router.push("/business");
-        } else if (user.role === "ADMIN") {
+        if (isAdminRole(user.role)) {
           router.push("/owner");
         } else {
           // If a custom redirect path is provided (e.g. for password resets), use it

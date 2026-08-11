@@ -113,11 +113,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     try {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "global" });
     } catch (err) {
       console.error("⚠️ Error signing out from Supabase Auth:", err);
     }
-    localStorage.removeItem("t2t_user_id");
+    if (typeof window !== "undefined") {
+      localStorage.clear();
+      sessionStorage.clear();
+    }
     setUser(null);
     window.location.href = "/sign-in";
   };

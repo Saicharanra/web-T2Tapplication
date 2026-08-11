@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       console.warn("⚠️ Could not fetch profiles table:", profErr);
     }
 
-    // Include only users with role === 'USER' (ignoring admins, owners, businesses)
+    // Include only users with role === 'USER' (ignoring admins, owners)
     const rawProfiles = (profiles || []).filter((p: any) => {
       const userRole = (p.role || "USER").toUpperCase();
       return userRole === "USER";

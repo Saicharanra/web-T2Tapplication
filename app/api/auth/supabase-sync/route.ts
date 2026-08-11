@@ -21,6 +21,19 @@ export async function POST(req: NextRequest) {
     const normalizedEmail = email.toLowerCase().trim();
     const fullName = (name || "").trim() || normalizedEmail.split("@")[0];
 
+    // Fetch role from Supabase public.profiles table if present
+    let profileRole: string | null = null;
+    try {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("role")
+        .eq("id", id)
+        .maybeSingle();
+      if (profile?.role) {
+        profileRole = profile.role.toUpperCase();
+      }
+    } catch (_) {}
+
     // 1. Check if user already exists by ID in public.users
     try {
       const { data: userById } = await supabaseAdmin
@@ -33,7 +46,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           success: true,
           userId: userById.id,
-          role: userById.role || "USER",
+          role: profileRole || (userById.role || "USER").toUpperCase(),
           level: userById.level || "BRONZE",
           points: userById.points ?? userById.reward_points_balance ?? 0,
         }, { status: 200 });
@@ -59,7 +72,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           success: true,
           userId: id,
-          role: userByEmail.role || "USER",
+          role: profileRole || (userByEmail.role || "USER").toUpperCase(),
           level: userByEmail.level || "BRONZE",
           points: userByEmail.points ?? userByEmail.reward_points_balance ?? 0,
         }, { status: 200 });
