@@ -51,6 +51,21 @@ export default function SignInClient() {
 
       if (signInError) throw signInError;
 
+      // Fetch user profile role from Supabase
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .maybeSingle();
+
+      const role = (profile?.role || data.user.user_metadata?.role || "user").toLowerCase();
+
+      // Strictly allow ONLY 'user' role
+      if (role !== "user") {
+        await supabase.auth.signOut();
+        throw new Error(`Access denied: Account role is '${role}'. Only standard 'user' accounts are permitted to log into the User Web App.`);
+      }
+
       router.push("/dashboard/home");
     } catch (err: any) {
       setError(err.message || "Failed to sign in");

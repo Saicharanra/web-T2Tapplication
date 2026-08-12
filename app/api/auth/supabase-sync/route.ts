@@ -81,8 +81,25 @@ export async function POST(req: NextRequest) {
       // Ignore error if email column is absent in users table (relational schema uses profiles table)
     }
 
-    // 3. Upsert into public.profiles if profiles table exists (Unified Master Schema)
+    // 3. Check existing profile role and preserve non-user roles
+    let currentRole = "user";
     try {
+      const { data: existingProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("role")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (existingProfile?.role) {
+        currentRole = existingProfile.role.toLowerCase();
+      }
+
+      if (currentRole !== "user") {
+        return NextResponse.json({
+          error: `Access denied: Account role '${currentRole}' is not permitted to access the User Web App.`,
+        }, { status: 403 });
+      }
+
       await supabaseAdmin
         .from("profiles")
         .upsert({

@@ -38,6 +38,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const email = sessionUser.email || "";
     const imageUrl = sessionUser.user_metadata?.avatar_url || sessionUser.user_metadata?.picture || null;
 
+    // Verify profile role
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", sessionUser.id)
+        .maybeSingle();
+
+      const role = (profile?.role || sessionUser.user_metadata?.role || "user").toLowerCase();
+
+      if (role !== "user") {
+        console.warn(`[AuthProvider] Access denied for non-user role: ${role}`);
+        await supabase.auth.signOut();
+        localStorage.removeItem("t2t_user_id");
+        setUser(null);
+        return;
+      }
+    } catch (rErr) {
+      console.warn("⚠️ Profile role check notice:", rErr);
+    }
+
     try {
       const syncRes = await fetch("/api/auth/supabase-sync", {
         method: "POST",

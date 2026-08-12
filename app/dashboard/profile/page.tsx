@@ -61,7 +61,15 @@ interface UserStats {
 }
 
 export default function ProfilePage() {
+<<<<<<< Updated upstream
   const { user, logout } = useAuth();
+=======
+<<<<<<< HEAD
+  const { user, loading: authLoading } = useAuth();
+=======
+  const { user, logout } = useAuth();
+>>>>>>> faab87a0ad4c6865e12b0712a116ef3f601ffd1f
+>>>>>>> Stashed changes
   const router = useRouter();
   const { toast } = useToast();
   const { points: globalPoints } = usePoints();
@@ -94,8 +102,10 @@ export default function ProfilePage() {
       fetchUserData();
       fetchUserStats();
       fetchRecentSubmissions();
+    } else if (!authLoading) {
+      setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (!userStats) return;
@@ -366,11 +376,34 @@ export default function ProfilePage() {
       .slice(0, 2);
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Recycle className="h-8 w-8 animate-spin text-green-600" />
         <span className="ml-2 text-gray-600">Loading profile...</span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-6 px-4 text-center animate-fade-in relative z-10 w-full">
+        {/* Background Decor */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-green-500/10 blur-[120px] rounded-full pointer-events-none -z-10" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/10 blur-[100px] rounded-full pointer-events-none -z-10" />
+
+        <div className="text-7xl mb-2 drop-shadow-sm">👤</div>
+        <h2 className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-800 drop-shadow-sm">
+          Want to create a profile?
+        </h2>
+        <p className="text-gray-600 max-w-md text-lg font-medium">
+          Log in or sign up to start tracking your recycling achievements, earn points, and climb the leaderboard!
+        </p>
+        <Link href="/sign-in">
+          <Button className="mt-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-full px-10 py-6 text-lg font-semibold shadow-xl hover:shadow-2xl transition-all hover:scale-105">
+            Log In to Continue
+          </Button>
+        </Link>
       </div>
     );
   }
