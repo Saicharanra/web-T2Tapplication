@@ -68,7 +68,11 @@ export default function SignInClient() {
 
       router.push("/dashboard/home");
     } catch (err: any) {
-      setError(err.message || "Failed to sign in");
+      if (err.message === "Invalid login credentials") {
+        setError("Account not found or invalid credentials. Please create an account to access.");
+      } else {
+        setError(err.message || "Failed to sign in");
+      }
     } finally {
       setLoading(false);
     }

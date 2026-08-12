@@ -61,15 +61,7 @@ interface UserStats {
 }
 
 export default function ProfilePage() {
-<<<<<<< Updated upstream
-  const { user, logout } = useAuth();
-=======
-<<<<<<< HEAD
-  const { user, loading: authLoading } = useAuth();
-=======
-  const { user, logout } = useAuth();
->>>>>>> faab87a0ad4c6865e12b0712a116ef3f601ffd1f
->>>>>>> Stashed changes
+  const { user, logout, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const { points: globalPoints } = usePoints();
