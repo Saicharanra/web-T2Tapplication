@@ -103,7 +103,7 @@ export default function SignInClient() {
     setLoading(true);
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard/profile`,
+        redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (resetError) throw resetError;
