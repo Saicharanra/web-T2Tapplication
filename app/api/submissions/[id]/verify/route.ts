@@ -77,16 +77,21 @@ export async function POST(
 
     const pointsToAward = pointsConfig[wasteType] ?? 10;
 
-    // 3. Update submission status
+    // 3. Update submission status (map 'VERIFIED' -> 'approved', 'REJECTED' -> 'rejected')
+    const normalizedStatus = status.toUpperCase() === "VERIFIED" || status.toUpperCase() === "APPROVED" ? "approved" : status.toLowerCase();
+    const isApproved = normalizedStatus === "approved" || normalizedStatus === "verified";
+    const isRejected = normalizedStatus === "rejected";
+
     const updateData: any = {
-      status: status.toUpperCase(),
-      points_awarded: status === "VERIFIED" ? pointsToAward : 0,
-      verified_at: status === "VERIFIED" ? new Date().toISOString() : null,
+      status: normalizedStatus,
+      points_awarded: isApproved ? pointsToAward : 0,
+      points_earned: isApproved ? pointsToAward : 0,
+      verified_at: isApproved ? new Date().toISOString() : null,
       assigned_admin_id: session.uid,
       updated_at: new Date().toISOString(),
     };
 
-    if (status === "REJECTED") {
+    if (isRejected) {
       updateData.rejection_reason = rejectionReason || "No reason provided";
     }
 

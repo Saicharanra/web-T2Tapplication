@@ -119,65 +119,129 @@ export async function POST(req: NextRequest) {
     const parsedLng = longitude != null ? Number(longitude) : null;
     const id = submissionId || crypto.randomUUID();
 
-    // 👤 Ensure user exists in database tables to prevent foreign key errors
-    try {
-      await supabaseAdmin.from("users").upsert(
-        {
-          id: userId,
-          email: session.email || "",
-          name: session.name || "Eco Warrior",
-          role: session.role || "USER",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id", ignoreDuplicates: true }
-      );
-    } catch (uErr) {
-      console.warn("⚠️ User upsert note:", uErr);
+    // 👤 Ensure profile & user exist in database tables to prevent foreign key errors
+    const { error: profErr } = await supabaseAdmin.from("profiles").upsert(
+      {
+        id: userId,
+        email: session.email || "",
+        full_name: session.name || "Eco Warrior",
+        role: (session.role || "user").toLowerCase(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
+    if (profErr) {
+      console.warn("⚠️ Profile upsert warning:", profErr.message);
     }
 
-    try {
-      await supabaseAdmin.from("profiles").upsert(
-        {
-          id: userId,
-          email: session.email || "",
-          full_name: session.name || "Eco Warrior",
-          role: (session.role || "user").toLowerCase(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id", ignoreDuplicates: true }
-      );
-    } catch (pErr) {
-      console.warn("⚠️ Profile upsert note:", pErr);
+    const { error: userErr } = await supabaseAdmin.from("users").upsert(
+      {
+        id: userId,
+        auth_user_id: userId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
+    if (userErr) {
+      console.warn("⚠️ User upsert warning:", userErr.message);
     }
 
     // Calculate initial points for the waste type
     const initialPoints = DEFAULT_WASTE_POINTS[wasteType] ?? 15;
 
+    // 🏷️ Resolve category_id from public.waste_categories table
+    let categoryId: string | null = null;
+    try {
+      const { data: categories } = await supabaseAdmin
+        .from("waste_categories")
+        .select("id, name");
+
+      if (categories && categories.length > 0) {
+        let matchedName = "Plastic";
+        const wLower = wasteType.toLowerCase();
+        if (wLower.includes("paper") || wLower.includes("cardboard")) {
+          matchedName = "Paper";
+        } else if (wLower.includes("metal") || wLower.includes("can")) {
+          matchedName = "Metal";
+        } else if (wLower.includes("glass") || (wLower.includes("bottle") && !wLower.includes("plastic"))) {
+          matchedName = "Glass";
+        } else if (wLower.includes("e-waste") || wLower.includes("electronic")) {
+          matchedName = "E-Waste";
+        } else if (wLower.includes("organic") || wLower.includes("mixed")) {
+          matchedName = "Organic";
+        }
+
+        const match = categories.find((c: any) => c.name === matchedName) || categories[0];
+        categoryId = match?.id || null;
+      }
+
+      if (!categoryId) {
+        const seedCats = [
+          { name: "Plastic", points_per_kg: 15 },
+          { name: "Paper", points_per_kg: 10 },
+          { name: "Metal", points_per_kg: 25 },
+          { name: "Glass", points_per_kg: 20 },
+          { name: "E-Waste", points_per_kg: 50 },
+          { name: "Organic", points_per_kg: 18 },
+        ];
+        const { data: insertedCats } = await supabaseAdmin
+          .from("waste_categories")
+          .insert(seedCats)
+          .select("id, name");
+
+        if (insertedCats && insertedCats.length > 0) {
+          categoryId = insertedCats[0].id;
+        }
+      }
+    } catch (cErr) {
+      console.warn("⚠️ waste_categories resolution warning:", cErr);
+    }
+
+    const parsedWeight = body.weight != null ? Number(body.weight) : 1.0;
+
+    // Build insert payload
+    const insertPayload: any = {
+      id,
+      user_id: userId,
+      category: wasteType,
+      weight: parsedWeight,
+      weight_kg: parsedWeight,
+      payout_amount: 0.0,
+      image_url: imageUrl,
+      image_path: imagePath,
+      image_size: imageSize || 0,
+      image_mime_type: imageMimeType || "image/jpeg",
+      location,
+      latitude: parsedLat,
+      longitude: parsedLng,
+      status: "pending",
+      points_awarded: initialPoints,
+      points_earned: initialPoints,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (categoryId) {
+      insertPayload.category_id = categoryId;
+    }
+
     // Insert into Supabase waste_submissions
     const { data: submission, error: insertError } = await supabaseAdmin
       .from("waste_submissions")
-      .insert({
-        id,
-        user_id: userId,
-        category: wasteType,
-        image_url: imageUrl,
-        image_path: imagePath,
-        image_size: imageSize || 0,
-        image_mime_type: imageMimeType || "image/jpeg",
-        location,
-        latitude: parsedLat,
-        longitude: parsedLng,
-        status: "PENDING",
-        points_awarded: initialPoints,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .insert(insertPayload)
       .select("*")
-      .single();
+      .maybeSingle();
 
     if (insertError) {
       console.error("❌ Error creating submission:", insertError);
-      return NextResponse.json({ error: "Failed to create submission", details: insertError.message }, { status: 500 });
+      return NextResponse.json(
+        { 
+          error: "Failed to create submission", 
+          details: insertError.message,
+          hint: insertError.hint || insertError.details
+        }, 
+        { status: 500 }
+      );
     }
 
     // 🤖 Auto-verify via ML service (fire-and-forget)

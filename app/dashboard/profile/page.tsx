@@ -754,11 +754,11 @@ export default function ProfilePage() {
                         {sub.wasteType}
                       </h4>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        sub.status === 'VERIFIED' ? 'bg-green-100 text-green-700' :
-                        sub.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                        (sub.status || "").toUpperCase() === 'VERIFIED' || (sub.status || "").toUpperCase() === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                        (sub.status || "").toUpperCase() === 'REJECTED' ? 'bg-red-100 text-red-700' :
                         'bg-yellow-100 text-yellow-700'
                       }`}>
-                        {sub.status}
+                        {(sub.status || "PENDING").toUpperCase()}
                       </span>
                     </div>
                     <div className="flex items-center justify-between flex-wrap gap-2">
@@ -767,11 +767,24 @@ export default function ProfilePage() {
                         {new Date(sub.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </p>
                       <div className="flex items-center gap-2">
-                        {sub.status === 'VERIFIED' ? (
+                        {((sub.status || "").toUpperCase() === 'VERIFIED' || (sub.status || "").toUpperCase() === 'APPROVED') ? (
                           <p className="text-xs font-bold text-green-600 mr-2">
-                            +{sub.pointsAwarded} pts
+                            +{sub.pointsAwarded || ({
+                              "Plastic Bottles": 15,
+                              "Paper Waste": 10,
+                              "Metal Cans": 25,
+                              "Glass Bottles": 20,
+                              "Cardboard": 12,
+                              "E-Waste": 50,
+                              "Organic Waste": 18,
+                              "Mixed Recyclables": 8
+                            }[sub.wasteType || ""] || 15)} pts
                           </p>
-                        ) : sub.status === 'PENDING' ? (
+                        ) : (sub.status || "").toUpperCase() === 'REJECTED' ? (
+                          <p className="text-xs font-bold text-red-600 mr-2">
+                            0 pts (Rejected)
+                          </p>
+                        ) : (
                           <p className="text-xs font-bold text-amber-600 mr-2">
                             +{sub.pointsAwarded || ({
                               "Plastic Bottles": 15,
@@ -782,11 +795,7 @@ export default function ProfilePage() {
                               "E-Waste": 50,
                               "Organic Waste": 18,
                               "Mixed Recyclables": 8
-                            }[sub.wasteType || ""] || 0)} pts (Pending)
-                          </p>
-                        ) : (
-                          <p className="text-xs font-bold text-red-600 mr-2">
-                            0 pts (Rejected)
+                            }[sub.wasteType || ""] || 15)} pts (Pending)
                           </p>
                         )}
                         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -829,11 +838,11 @@ export default function ProfilePage() {
                   unoptimized
                 />
                 <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold shadow-lg ${
-                  selectedSubmission.status === 'VERIFIED' ? 'bg-green-500 text-white' :
-                  selectedSubmission.status === 'REJECTED' ? 'bg-red-500 text-white' :
+                  (selectedSubmission.status || "").toUpperCase() === 'VERIFIED' || (selectedSubmission.status || "").toUpperCase() === 'APPROVED' ? 'bg-green-500 text-white' :
+                  (selectedSubmission.status || "").toUpperCase() === 'REJECTED' ? 'bg-red-500 text-white' :
                   'bg-yellow-500 text-white'
                 }`}>
-                  {selectedSubmission.status}
+                  {(selectedSubmission.status || "PENDING").toUpperCase()}
                 </div>
               </div>
               <div className="p-6">
@@ -857,12 +866,23 @@ export default function ProfilePage() {
                       </span>
                     </div>
                   </div>
-                  {selectedSubmission.status === 'VERIFIED' && (
-                    <div className="bg-green-50 px-4 py-2 rounded-2xl border border-green-100 text-center">
-                      <span className="block text-[10px] text-green-600 font-bold uppercase tracking-wider">Points Awarded</span>
-                      <span className="text-2xl font-black text-green-700">+{selectedSubmission.pointsAwarded}</span>
-                    </div>
-                  )}
+                  <div className="bg-green-50 px-4 py-2 rounded-2xl border border-green-100 text-center">
+                    <span className="block text-[10px] text-green-600 font-bold uppercase tracking-wider">
+                      {((selectedSubmission.status || "").toUpperCase() === 'VERIFIED' || (selectedSubmission.status || "").toUpperCase() === 'APPROVED') ? 'Points Awarded' : 'Points (Pending)'}
+                    </span>
+                    <span className="text-2xl font-black text-green-700">
+                      +{selectedSubmission.pointsAwarded || ({
+                        "Plastic Bottles": 15,
+                        "Paper Waste": 10,
+                        "Metal Cans": 25,
+                        "Glass Bottles": 20,
+                        "Cardboard": 12,
+                        "E-Waste": 50,
+                        "Organic Waste": 18,
+                        "Mixed Recyclables": 8
+                      }[selectedSubmission.wasteType || ""] || 15)}
+                    </span>
+                  </div>
                 </div>
                 
                 <div className="pt-4 border-t border-gray-100 flex justify-end">

@@ -449,16 +449,18 @@ export default function UserDashboard() {
         let errorMessage = 'Submission failed';
         try {
           const error = await submissionResponse.json();
-          if (error.message) {
-            errorMessage = error.message;
+          if (error.details) {
+            errorMessage = `${error.error || "Submission failed"}: ${error.details}`;
           } else if (error.error) {
             errorMessage = error.error;
+          } else if (error.message) {
+            errorMessage = error.message;
           }
           if (error.hint) {
-            errorMessage += `\n\nHint: ${error.hint}`;
+            errorMessage += ` (Hint: ${error.hint})`;
           }
           if (error.userId) {
-            errorMessage += `\n\nYour User ID: ${error.userId}`;
+            errorMessage += ` (User ID: ${error.userId})`;
           }
         } catch { }
         throw new Error(errorMessage);
