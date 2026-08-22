@@ -999,15 +999,18 @@ export default function UserDashboard() {
                         }
                       </span>
                       <span className={`font-bold ${
-                        submission.status === 'VERIFIED' ? 'text-green-600' :
-                        submission.status === 'PENDING' ? 'text-amber-600' : 'text-red-500'
+                        (submission.status || "").toUpperCase() === 'VERIFIED' || (submission.status || "").toUpperCase() === 'APPROVED'
+                          ? 'text-green-600'
+                          : (submission.status || "").toUpperCase() === 'REJECTED'
+                          ? 'text-red-500'
+                          : 'text-amber-600'
                       }`}>
-                        +{submission.status === 'VERIFIED'
+                        +{(submission.status || "").toUpperCase() === 'REJECTED'
+                          ? 0
+                          : (submission.pointsAwarded && submission.pointsAwarded > 0)
                           ? submission.pointsAwarded
-                          : submission.status === 'PENDING'
-                          ? (pointsGuide.find(p => p.category === submission.wasteType)?.points || 0)
-                          : 0
-                        } pts {submission.status === 'PENDING' && '(Pending)'}
+                          : (pointsGuide.find(p => p.category === (submission.wasteType || (submission as any).category))?.points || 15)
+                        } pts {(submission.status || "").toUpperCase() === 'PENDING' && '(Pending)'}
                       </span>
                     </div>
                   </div>

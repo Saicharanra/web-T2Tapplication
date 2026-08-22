@@ -46,12 +46,29 @@ export async function POST(req: NextRequest) {
     const fileExtension = file.name.split('.').pop() || 'jpg';
     const imagePath = `${userId}/${submissionId}.${fileExtension}`;
 
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+    let { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from("waste-images")
       .upload(imagePath, buffer, {
         contentType: file.type,
         upsert: true,
       });
+
+    if (uploadError && (uploadError.message?.toLowerCase().includes("bucket") || uploadError.message?.toLowerCase().includes("not found"))) {
+      console.warn("⚠️ 'waste-images' bucket missing or unaccessible, attempting auto-creation...");
+      try {
+        await supabaseAdmin.storage.createBucket("waste-images", { public: true });
+        const retry = await supabaseAdmin.storage
+          .from("waste-images")
+          .upload(imagePath, buffer, {
+            contentType: file.type,
+            upsert: true,
+          });
+        uploadData = retry.data;
+        uploadError = retry.error;
+      } catch (createErr) {
+        console.warn("⚠️ Auto-create bucket error:", createErr);
+      }
+    }
 
     if (uploadError) {
       console.error("❌ Supabase Storage upload error:", uploadError);

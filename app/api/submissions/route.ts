@@ -82,6 +82,17 @@ export async function GET(req: NextRequest) {
 }
 
 // ─── POST: Create new waste submission ────────────────────────────────────────
+const DEFAULT_WASTE_POINTS: Record<string, number> = {
+  "Plastic Bottles": 15,
+  "Paper Waste": 10,
+  "Metal Cans": 25,
+  "Glass Bottles": 20,
+  Cardboard: 12,
+  "E-Waste": 50,
+  "Organic Waste": 18,
+  "Mixed Recyclables": 8,
+};
+
 export async function POST(req: NextRequest) {
   try {
     const session = await verifySession(req);
@@ -108,6 +119,40 @@ export async function POST(req: NextRequest) {
     const parsedLng = longitude != null ? Number(longitude) : null;
     const id = submissionId || crypto.randomUUID();
 
+    // 👤 Ensure user exists in database tables to prevent foreign key errors
+    try {
+      await supabaseAdmin.from("users").upsert(
+        {
+          id: userId,
+          email: session.email || "",
+          name: session.name || "Eco Warrior",
+          role: session.role || "USER",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id", ignoreDuplicates: true }
+      );
+    } catch (uErr) {
+      console.warn("⚠️ User upsert note:", uErr);
+    }
+
+    try {
+      await supabaseAdmin.from("profiles").upsert(
+        {
+          id: userId,
+          email: session.email || "",
+          full_name: session.name || "Eco Warrior",
+          role: (session.role || "user").toLowerCase(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id", ignoreDuplicates: true }
+      );
+    } catch (pErr) {
+      console.warn("⚠️ Profile upsert note:", pErr);
+    }
+
+    // Calculate initial points for the waste type
+    const initialPoints = DEFAULT_WASTE_POINTS[wasteType] ?? 15;
+
     // Insert into Supabase waste_submissions
     const { data: submission, error: insertError } = await supabaseAdmin
       .from("waste_submissions")
@@ -123,7 +168,7 @@ export async function POST(req: NextRequest) {
         latitude: parsedLat,
         longitude: parsedLng,
         status: "PENDING",
-        points_awarded: 0,
+        points_awarded: initialPoints,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -152,7 +197,7 @@ export async function POST(req: NextRequest) {
         email: session.email,
         type: "submission_received",
         title: "Submission Received",
-        message: "Your disposal submission has been received and is pending review.",
+        message: `Your ${wasteType} disposal submission has been received and is pending review (+${initialPoints} pts pending).`,
         read: false,
         created_at: new Date().toISOString(),
       });
@@ -196,6 +241,7 @@ export async function POST(req: NextRequest) {
           userId: submission.user_id,
           wasteType: submission.category,
           imageUrl: submission.image_url,
+          pointsAwarded: submission.points_awarded || initialPoints,
           user: { name: session.name, email: session.email },
         },
       },
